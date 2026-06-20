@@ -4,11 +4,18 @@ async function importEntity(entity,fileInputId){
  const rows=await readSheetFile(file);
  if(!rows.length) return alert('No rows found');
  let imported=0, skipped=0;
+ const targetMap={ingredients:'ingredientImportResults',products:'productImportResults',expenses:'expenseImportResults'};
+ const target=targetMap[entity];
+ const updateProgress=(processed)=>{
+  if(byId(target)) byId(target).innerHTML=`<div class="card"><h3>Upload in progress</h3><p>Processed: ${processed} / ${rows.length}</p><p>Imported/Updated: ${imported}</p><p>Skipped: ${skipped}</p></div>`;
+ };
+ updateProgress(0);
 
- for(const r of rows){
+ for(let idx=0; idx<rows.length; idx++){
+  const r=rows[idx];
   if(entity==='ingredients'){
    const name=String(pick(r,['Ingredient Name','Ingredient','Name'])).trim();
-   if(!name){skipped++;continue;}
+   if(!name){skipped++; updateProgress(idx+1); continue;}
    const price=num(pick(r,['Purchase Price','Price','Rate']));
    const waste=num(pick(r,['Wastage %','Wastage','Waste %','Waste']));
    const activeRaw=String(pick(r,['Active','Status'])||'true').toLowerCase();
@@ -17,7 +24,9 @@ async function importEntity(entity,fileInputId){
     name,
     category:pick(r,['Category'])||'Uncategorized',
     purchase_price:price,
-    purchase_unit:pick(r,['Unit','Purchase Unit'])||'kg',
+    purchase_unit:pick(r,['Purchase Unit','Unit'])||'kg',
+    consumption_unit:pick(r,['Consumption Unit','Usage Unit'])||pick(r,['Purchase Unit','Unit'])||'kg',
+    conversion_quantity:num(pick(r,['Conversion Quantity','Conversion Qty','Conversion']))||1,
     wastage_percent:waste,
     effective_cost:effectiveCost(price,waste),
     active:!['false','inactive','no','0'].includes(activeRaw),
@@ -30,7 +39,7 @@ async function importEntity(entity,fileInputId){
 
   if(entity==='products'){
    const name=String(pick(r,['Product Name','Product','Item Name','Item','Name'])).trim();
-   if(!name){skipped++;continue;}
+   if(!name){skipped++; updateProgress(idx+1); continue;}
    const brandText=String(pick(r,['Brand'])||'').trim();
    const branchText=String(pick(r,['Branch'])||'').trim();
    const brand=state.brands.find(b=>(b.name||'').toLowerCase()===brandText.toLowerCase());
@@ -62,7 +71,7 @@ async function importEntity(entity,fileInputId){
 
   if(entity==='expenses'){
    const amount=num(pick(r,['Amount','Expense']));
-   if(!amount){skipped++;continue;}
+   if(!amount){skipped++; updateProgress(idx+1); continue;}
    const brandText=pick(r,['Brand']);
    const branchText=pick(r,['Branch']);
    const brand=state.brands.find(b=>b.name?.toLowerCase()===String(brandText).toLowerCase());
@@ -70,9 +79,9 @@ async function importEntity(entity,fileInputId){
    await dbInsert('expenses',{expense_date:pick(r,['Date'])||today(),brand_id:brand?.id||null,branch_id:branch?.id||null,category:pick(r,['Category'])||'Miscellaneous',description:pick(r,['Description','Details']),amount,notes:pick(r,['Notes'])});
    imported++;
   }
+  updateProgress(idx+1);
+  await new Promise(requestAnimationFrame);
  }
- const targetMap={ingredients:'ingredientImportResults',products:'productImportResults',expenses:'expenseImportResults'};
- const target=targetMap[entity];
  if(byId(target)) byId(target).innerHTML=`<div class="card"><h3>Import Complete</h3><p>Imported/Updated: ${imported}</p><p>Skipped: ${skipped}</p></div>`;
  await refreshAll(false);
  if(entity==='ingredients') renderIngredients();
