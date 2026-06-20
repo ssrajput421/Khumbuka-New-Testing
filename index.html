@@ -65,6 +65,7 @@
       <div class="actions"><button onclick="saveProductV15()" class="btn-success">Save Product</button><button onclick="clearProductForm()" class="btn-secondary">Clear</button><button onclick="openProductRecipeBuilder()">Add Recipes</button></div>
       <div id="productOutput"></div>
     </div>
+    <div class="card"><h3>Import Products</h3><p class="muted">Upload CSV/Excel with columns like Product Name, Category, Brand, Branch, Offline Price, Online Price, Packaging Cost, Commission %, Manual Product Cost.</p><input type="file" id="productFile" accept=".csv,.xlsx,.xls"><button onclick="importEntity('products','productFile')" class="btn-success">Import Products</button><div id="productImportResults"></div></div>
     <div class="card"><h3>Product Recipe Builder</h3><p class="muted">Select a saved product, attach recipes and quantities used.</p><div class="grid three"><div><label>Product</label><select id="builderProduct"></select></div><div><label>Recipe</label><select id="builderRecipe"></select></div><div><label>Quantity Used</label><input id="builderQty" type="number"></div><div><label>Unit</label><input id="builderUnit" placeholder="g, ml, piece, portion"></div></div><button onclick="addProductRecipe()" class="btn-success">Attach Recipe</button><div id="productRecipeList"></div></div>
     <div id="productsTable"></div>
   </section>
