@@ -1,13 +1,14 @@
 async function importEntity(entity,fileInputId){
  const file=byId(fileInputId).files[0];
- if(!file) return alert('Select CSV or Excel file');
+ if(!file) return showWarning('Select CSV or Excel file');
  const rows=await readSheetFile(file);
- if(!rows.length) return alert('No rows found');
+ if(!rows.length) return showWarning('No rows found in file');
  let imported=0, skipped=0;
  const targetMap={ingredients:'ingredientImportResults',products:'productImportResults',expenses:'expenseImportResults'};
  const target=targetMap[entity];
  const updateProgress=(processed)=>{
-  if(byId(target)) byId(target).innerHTML=`<div class="card"><h3>Upload in progress</h3><p>Processed: ${processed} / ${rows.length}</p><p>Imported/Updated: ${imported}</p><p>Skipped: ${skipped}</p></div>`;
+  const pctDone = rows.length ? Math.round(processed/rows.length*100) : 0;
+  if(byId(target)) byId(target).innerHTML=`<div class="import-progress-card"><h3>Upload in progress</h3><p>Processed: ${processed} / ${rows.length} (${pctDone}%)</p><div class="progress-bar"><div class="progress-fill" style="width:${pctDone}%"></div></div><p>Imported/Updated: ${imported}</p><p>Skipped: ${skipped}</p></div>`;
  };
  updateProgress(0);
 
@@ -20,21 +21,9 @@ async function importEntity(entity,fileInputId){
    const waste=num(pick(r,['Wastage %','Wastage','Waste %','Waste']));
    const activeRaw=String(pick(r,['Active','Status'])||'true').toLowerCase();
    const existing=state.ingredients.find(x=>(x.name||'').toLowerCase()===name.toLowerCase());
-   const row={
-    name,
-    category:pick(r,['Category'])||'Uncategorized',
-    purchase_price:price,
-    purchase_unit:pick(r,['Purchase Unit','Unit'])||'kg',
-    consumption_unit:pick(r,['Consumption Unit','Usage Unit'])||pick(r,['Purchase Unit','Unit'])||'kg',
-    conversion_quantity:num(pick(r,['Conversion Quantity','Conversion Qty','Conversion']))||1,
-    wastage_percent:waste,
-    effective_cost:effectiveCost(price,waste),
-    active:!['false','inactive','no','0'].includes(activeRaw),
-    updated_at:new Date().toISOString()
-   };
-   if(existing) await dbUpdate('ingredients', existing.id, row);
-   else await dbInsert('ingredients', row);
-   imported++;
+   const row={ name, category:pick(r,['Category'])||'Uncategorized', purchase_price:price, purchase_unit:pick(r,['Purchase Unit','Unit'])||'kg', consumption_unit:pick(r,['Consumption Unit','Usage Unit'])||pick(r,['Purchase Unit','Unit'])||'kg', conversion_quantity:num(pick(r,['Conversion Quantity','Conversion Qty','Conversion']))||1, wastage_percent:waste, effective_cost:effectiveCost(price,waste), active:!['false','inactive','no','0'].includes(activeRaw), updated_at:new Date().toISOString() };
+   const saved = existing ? await dbUpdate('ingredients', existing.id, row) : await dbInsert('ingredients', row);
+   saved ? imported++ : skipped++;
   }
 
   if(entity==='products'){
@@ -51,22 +40,9 @@ async function importEntity(entity,fileInputId){
    const commission=num(pick(r,['Commission %','Commission','Commission Percent'])) || settings.defaultCommission;
    const activeRaw=String(pick(r,['Active','Status'])||'true').toLowerCase();
    const existing=state.products.find(x=>(x.name||'').toLowerCase()===name.toLowerCase() && (x.branch_id||'')===(branch?.id||''));
-   const row={
-    name,
-    category:pick(r,['Category'])||'Uncategorized',
-    brand_id:brand?.id||null,
-    branch_id:branch?.id||null,
-    offline_price:offlinePrice,
-    online_price:onlinePrice,
-    packaging_cost:packagingCost,
-    commission_percent:commission,
-    manual_product_cost:manualCost||null,
-    active:!['false','inactive','no','0'].includes(activeRaw),
-    updated_at:new Date().toISOString()
-   };
-   if(existing) await dbUpdate('products', existing.id, row);
-   else await dbInsert('products', row);
-   imported++;
+   const row={ name, category:pick(r,['Category'])||'Uncategorized', brand_id:brand?.id||null, branch_id:branch?.id||null, offline_price:offlinePrice, online_price:onlinePrice, packaging_cost:packagingCost, commission_percent:commission, manual_product_cost:manualCost||null, active:!['false','inactive','no','0'].includes(activeRaw), updated_at:new Date().toISOString() };
+   const saved = existing ? await dbUpdate('products', existing.id, row) : await dbInsert('products', row);
+   saved ? imported++ : skipped++;
   }
 
   if(entity==='expenses'){
@@ -76,13 +52,14 @@ async function importEntity(entity,fileInputId){
    const branchText=pick(r,['Branch']);
    const brand=state.brands.find(b=>b.name?.toLowerCase()===String(brandText).toLowerCase());
    const branch=state.branches.find(b=>b.name?.toLowerCase()===String(branchText).toLowerCase());
-   await dbInsert('expenses',{expense_date:pick(r,['Date'])||today(),brand_id:brand?.id||null,branch_id:branch?.id||null,category:pick(r,['Category'])||'Miscellaneous',description:pick(r,['Description','Details']),amount,notes:pick(r,['Notes'])});
-   imported++;
+   const saved=await dbInsert('expenses',{expense_date:pick(r,['Date'])||today(),brand_id:brand?.id||null,branch_id:branch?.id||null,category:pick(r,['Category'])||'Miscellaneous',description:pick(r,['Description','Details']),amount,notes:pick(r,['Notes'])});
+   saved ? imported++ : skipped++;
   }
   updateProgress(idx+1);
   await new Promise(requestAnimationFrame);
  }
  if(byId(target)) byId(target).innerHTML=`<div class="card"><h3>Import Complete</h3><p>Imported/Updated: ${imported}</p><p>Skipped: ${skipped}</p></div>`;
+ showToast(`${entity} import complete. Imported/updated ${imported}, skipped ${skipped}.`);
  await refreshAll(false);
  if(entity==='ingredients') renderIngredients();
  if(entity==='products') renderProducts();
