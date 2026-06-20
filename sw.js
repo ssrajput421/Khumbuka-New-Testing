@@ -1,4 +1,4 @@
-const KHUMBUKA_CACHE_VERSION = 'khumbuka-v15-pwa-v1';
+const KHUMBUKA_CACHE_VERSION = 'khumbuka-v15-pwa-v2';
 const STATIC_CACHE = `${KHUMBUKA_CACHE_VERSION}-static`;
 const RUNTIME_CACHE = `${KHUMBUKA_CACHE_VERSION}-runtime`;
 

@@ -97,7 +97,8 @@ function hideSmartSuggestions(){ const panel=byId('smartSuggestPanel'); if(panel
 function showSmartSuggestions(inputId){
   const input=byId(inputId); if(!input) return;
   let panel=byId('smartSuggestPanel');
-  if(!panel){ panel=document.createElement('div'); panel.id='smartSuggestPanel'; panel.className='smart-suggest-panel hidden'; document.body.appendChild(panel); }
+  if(!panel){ panel=document.createElement('div'); panel.id='smartSuggestPanel'; panel.className='smart-suggest-panel hidden'; document.body.appendChild(panel); bindDropdownScrollContainment(panel); }
+  bindDropdownScrollContainment(panel);
   const raw=String(input.value||'').toLowerCase();
   const values=(smartSuggestStore[inputId]||[]).filter(v=>!raw || `${v.value} ${v.label} ${v.meta} ${v.badge}`.toLowerCase().includes(raw)).slice(0,14);
   if(!values.length){ hideSmartSuggestions(); return; }
@@ -145,8 +146,23 @@ function refreshGlobalSmartSuggestions(){
   Object.entries(map).forEach(([id,items])=>setSmartSuggestions(id,items));
 }
 document.addEventListener('click', e=>{ const p=byId('smartSuggestPanel'); if(!p) return; if(p.contains(e.target) || e.target.classList?.contains('smart-input')) return; hideSmartSuggestions(); });
-window.addEventListener('scroll', hideSmartSuggestions, true);
-window.addEventListener('resize', hideSmartSuggestions);
+function bindDropdownScrollContainment(panel){
+  if(!panel || panel.dataset.scrollContainmentBound==='true') return;
+  panel.dataset.scrollContainmentBound='true';
+  ['touchstart','touchmove','wheel'].forEach(evt=>panel.addEventListener(evt, e=>e.stopPropagation(), {passive:true}));
+}
+function isDropdownPanelScrollTarget(target){
+  const smart=byId('smartSuggestPanel');
+  const kh=byId('khSelectPanel');
+  return !!(target && ((smart && smart.contains(target)) || (kh && kh.contains(target))));
+}
+function handleDropdownWindowScroll(e){
+  if(isDropdownPanelScrollTarget(e.target)) return;
+  hideSmartSuggestions();
+  if(typeof closeKhSelectPanel==='function') closeKhSelectPanel();
+}
+window.addEventListener('scroll', handleDropdownWindowScroll, true);
+window.addEventListener('resize', ()=>{ hideSmartSuggestions(); if(typeof closeKhSelectPanel==='function') closeKhSelectPanel(); });
 
 function excelSerialToDate(value){
   if(value instanceof Date) return value.toISOString().slice(0,10);
@@ -321,7 +337,9 @@ function buildKhSelectPanel(select, filterText=''){
     panel.id = 'khSelectPanel';
     panel.className = 'kh-select-panel hidden';
     document.body.appendChild(panel);
+    bindDropdownScrollContainment(panel);
   }
+  bindDropdownScrollContainment(panel);
   const options = [...select.options].map((opt, idx)=>({
     value: opt.value,
     label: opt.textContent.trim(),
@@ -443,8 +461,7 @@ document.addEventListener('click', e=>{
   if(e.target.closest?.('.kh-select-shell')) return;
   closeKhSelectPanel();
 });
-window.addEventListener('scroll', closeKhSelectPanel, true);
-window.addEventListener('resize', closeKhSelectPanel);
+// Dropdown scroll is handled by handleDropdownWindowScroll above so mobile users can scroll inside open dropdown cards.
 if(document.readyState === 'loading'){
   document.addEventListener('DOMContentLoaded', ()=>setTimeout(initKhumbukaDropdowns, 250));
 }else{
