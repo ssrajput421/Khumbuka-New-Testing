@@ -1,12 +1,11 @@
 function uniqueCleanValues(values){ return [...new Set(values.map(v=>String(v||'').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b)); }
 function setDatalistOptions(id, values){ const el=byId(id); if(!el) return; el.innerHTML=uniqueCleanValues(values).map(v=>`<option value="${escapeHtml(v)}"></option>`).join(''); }
 function renderIngredientDatalists(){
- setDatalistOptions('ingredientNameSuggestions', state.ingredients.map(i=>i.name));
- setDatalistOptions('ingredientCategorySuggestions', state.ingredients.map(i=>i.category));
- setDatalistOptions('ingredientSearchSuggestions', state.ingredients.flatMap(i=>[i.name,i.category,i.purchase_unit,i.consumption_unit]));
- setDatalistOptions('bulkIngredientCategorySuggestions', state.ingredients.map(i=>i.category));
- setDatalistOptions('bulkPurchaseUnitSuggestions', state.ingredients.map(i=>i.purchase_unit));
- setDatalistOptions('bulkConsumptionUnitSuggestions', state.ingredients.map(i=>i.consumption_unit));
+ setSmartSuggestions('ingredientName', state.ingredients.map(i=>i.name));
+ setSmartSuggestions('ingredientCategory', state.ingredients.map(i=>i.category));
+ setSmartSuggestions('ingredientSearch', state.ingredients.flatMap(i=>[i.name,i.category,i.purchase_unit,i.consumption_unit]));
+ setSmartSuggestions('bulkIngredientCategory', state.ingredients.map(i=>i.category));
+ renderUnitSelectors();
 }
 async function saveIngredient(){
  const name=val('ingredientName').trim(); if(!name) return showWarning('Ingredient name required');
@@ -18,8 +17,8 @@ async function saveIngredient(){
  showToast(state.editing.ingredient?'Ingredient updated successfully.':'Ingredient created successfully.');
  clearIngredientForm(); await refreshAll(false); renderIngredients(); renderRecipeSelectors();
 }
-function clearIngredientForm(){ state.editing.ingredient=null; ['ingredientName','ingredientCategory','purchasePrice','purchaseUnit','consumptionUnit','conversionQuantity','wastagePercent'].forEach(id=>setVal(id,'')); setVal('ingredientActive','true'); }
-function editIngredient(id){ const i=state.ingredients.find(x=>x.id===id); if(!i) return; state.editing.ingredient=id; setVal('ingredientName',i.name); setVal('ingredientCategory',i.category); setVal('purchasePrice',i.purchase_price); setVal('purchaseUnit',i.purchase_unit); setVal('consumptionUnit',i.consumption_unit || i.purchase_unit); setVal('conversionQuantity',i.conversion_quantity || 1); setVal('wastagePercent',i.wastage_percent); setVal('ingredientActive',String(i.active!==false)); scrollTo(0,0); }
+function clearIngredientForm(){ state.editing.ingredient=null; ['ingredientName','ingredientCategory','purchasePrice','conversionQuantity','wastagePercent'].forEach(id=>setVal(id,'')); setVal('purchaseUnit',''); setVal('consumptionUnit',''); setVal('ingredientActive','true'); renderUnitSelectors(); }
+function editIngredient(id){ const i=state.ingredients.find(x=>x.id===id); if(!i) return; state.editing.ingredient=id; setVal('ingredientName',i.name); setVal('ingredientCategory',i.category); setVal('purchasePrice',i.purchase_price); setVal('purchaseUnit',i.purchase_unit); setVal('consumptionUnit',i.consumption_unit || i.purchase_unit); setVal('conversionQuantity',i.conversion_quantity || 1); setVal('wastagePercent',i.wastage_percent); setVal('ingredientActive',String(i.active!==false)); byId('ingredientCreatePanel')?.setAttribute('open',''); byId('ingredientCreatePanel')?.scrollIntoView({behavior:'smooth',block:'start'}); }
 async function deleteIngredient(id){ const i=state.ingredients.find(x=>x.id===id); const ok=await confirmTypedDelete(`Delete ingredient ${i?.name||''}? Existing recipe links may fail.`, 'Delete ingredient'); if(!ok) return; const done=await dbDelete('ingredients',id); if(done){ showToast('Ingredient deleted.'); await refreshAll(false); renderIngredients(); renderRecipeSelectors(); }}
 function renderIngredients(){
  renderIngredientDatalists();
@@ -33,9 +32,9 @@ function renderIngredients(){
 }
 function selectedIngredientIds(){ return getCheckedValues('.ingredient-row-check'); }
 function toggleAllIngredients(checked){ setChecked('.ingredient-row-check', checked); updateIngredientBulkCount(); }
-function updateIngredientBulkCount(){ const el=byId('selectedIngredientCount'); if(el) el.textContent=`${selectedIngredientIds().length} selected`; }
+function updateIngredientBulkCount(){ const count=selectedIngredientIds().length; const el=byId('selectedIngredientCount'); if(el) el.textContent=`${count} selected`; const panel=byId('bulkIngredientActions'); if(panel) panel.classList.toggle('hidden', count < 2); }
 async function bulkUpdateIngredients(){
- const ids=selectedIngredientIds(); if(!ids.length) return showWarning('Select at least one ingredient.');
+ const ids=selectedIngredientIds(); if(ids.length < 2) return showWarning('Select at least two ingredients for bulk action.');
  const category=val('bulkIngredientCategory').trim(); const purchase_unit=val('bulkPurchaseUnit').trim(); const consumption_unit=val('bulkConsumptionUnit').trim(); const conversion_quantity=num(val('bulkConversionQuantity'));
  const row={updated_at:new Date().toISOString()};
  if(category) row.category=category; if(purchase_unit) row.purchase_unit=purchase_unit; if(consumption_unit) row.consumption_unit=consumption_unit; if(conversion_quantity) row.conversion_quantity=conversion_quantity;
@@ -44,7 +43,7 @@ async function bulkUpdateIngredients(){
  showToast(`${ids.length} ingredient(s) updated.`); ['bulkIngredientCategory','bulkPurchaseUnit','bulkConsumptionUnit','bulkConversionQuantity'].forEach(id=>setVal(id,'')); await refreshAll(false); renderIngredients(); renderRecipeSelectors();
 }
 async function bulkDeleteIngredients(){
- const ids=selectedIngredientIds(); if(!ids.length) return showWarning('Select at least one ingredient.');
+ const ids=selectedIngredientIds(); if(ids.length < 2) return showWarning('Select at least two ingredients for bulk delete.');
  const ok=await confirmTypedDelete(`Delete ${ids.length} selected ingredient(s)? Existing recipe links may fail.`, 'Bulk delete ingredients'); if(!ok) return;
  const done=await dbDeleteMany('ingredients', ids); if(done){ showToast(`${ids.length} ingredient(s) deleted.`); await refreshAll(false); renderIngredients(); renderRecipeSelectors(); }
 }

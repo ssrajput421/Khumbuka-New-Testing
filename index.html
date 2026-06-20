@@ -10,6 +10,8 @@
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 </head>
 <body>
+<div class="mobile-topbar"><button class="mobile-menu-button" onclick="toggleMobileMenu()">☰</button><div><strong>Khumbuka</strong><span>Profitability Intelligence</span></div><button class="mobile-refresh-button" onclick="manualRefresh()">↻</button></div>
+<div class="mobile-menu-backdrop" onclick="closeMobileMenu()"></div>
 <div class="sidebar" id="sidebar">
   <div class="sidebar-header">
     <button id="toggleSidebar" onclick="toggleSidebar()">☰</button>
@@ -18,25 +20,25 @@
       <p class="logo-subtitle menu-text">Profitability Intelligence</p>
     </div>
   </div>
-  <button onclick="showTab('dashboard')"><span class="icon">📊</span><span class="menu-text">Dashboard</span></button>
-  <button onclick="showTab('products')"><span class="icon">📦</span><span class="menu-text">Products</span></button>
-  <button onclick="showTab('recipes')"><span class="icon">🧾</span><span class="menu-text">Recipes</span></button>
-  <button onclick="showTab('ingredients')"><span class="icon">🥬</span><span class="menu-text">Ingredients</span></button>
-  <button onclick="showTab('sales')"><span class="icon">📥</span><span class="menu-text">Sales Import</span></button>
-  <button onclick="showTab('expenses')"><span class="icon">💸</span><span class="menu-text">Day Book</span></button>
-  <button onclick="showTab('analytics')"><span class="icon">📈</span><span class="menu-text">Analytics</span></button>
-  <button onclick="showTab('pricing')"><span class="icon">🎯</span><span class="menu-text">Pricing Engine</span></button>
-  <button onclick="showTab('cart')"><span class="icon">🛒</span><span class="menu-text">Cart Simulator</span></button>
-  <button onclick="showTab('users')"><span class="icon">👥</span><span class="menu-text">Users</span></button>
-  <button onclick="showTab('imports')"><span class="icon">⚙️</span><span class="menu-text">Settings</span></button>
+  <button data-tab="dashboard" onclick="showTab('dashboard')"><span class="icon">📊</span><span class="menu-text">Dashboard</span></button>
+  <button data-tab="products" onclick="showTab('products')"><span class="icon">📦</span><span class="menu-text">Products</span></button>
+  <button data-tab="recipes" onclick="showTab('recipes')"><span class="icon">🧾</span><span class="menu-text">Recipes</span></button>
+  <button data-tab="ingredients" onclick="showTab('ingredients')"><span class="icon">🥬</span><span class="menu-text">Ingredients</span></button>
+  <button data-tab="sales" onclick="showTab('sales')"><span class="icon">📥</span><span class="menu-text">Sales Import</span></button>
+  <button data-tab="expenses" onclick="showTab('expenses')"><span class="icon">💸</span><span class="menu-text">Day Book</span></button>
+  <button data-tab="analytics" onclick="showTab('analytics')"><span class="icon">📈</span><span class="menu-text">Analytics</span></button>
+  <button data-tab="pricing" onclick="showTab('pricing')"><span class="icon">🎯</span><span class="menu-text">Pricing Engine</span></button>
+  <button data-tab="cart" onclick="showTab('cart')"><span class="icon">🛒</span><span class="menu-text">Cart Simulator</span></button>
+  <button data-tab="users" onclick="showTab('users')"><span class="icon">👥</span><span class="menu-text">Users</span></button>
+  <button data-tab="imports" onclick="showTab('imports')"><span class="icon">⚙️</span><span class="menu-text">Settings</span></button>
 </div>
 
 <main class="main">
   <section id="dashboard" class="tab">
-    <div class="page-title"><div><h1>Company Profitability Dashboard</h1><p>Revenue, expenses, profit and margin across brands and branches.</p></div><button onclick="refreshAll()">Refresh</button></div>
+    <div class="page-title"><div><h1>Company Profitability Dashboard</h1><p>Revenue, expenses, profit and margin across Khumbuka branches.</p></div><button onclick="manualRefresh()">Refresh Data</button></div>
     <div id="dashboardKPIs" class="kpi-grid"></div>
     <div class="two-col">
-      <div class="card"><h3>Brand Performance</h3><div id="brandDashboard"></div></div>
+      <div class="card"><h3>Company Performance</h3><div id="brandDashboard"></div></div>
       <div class="card"><h3>Branch Performance</h3><div id="branchDashboard"></div></div>
     </div>
     <div class="card"><h3>Product Profitability Snapshot</h3><div id="dashboardProductTable"></div></div>
@@ -44,18 +46,12 @@
 
   <section id="products" class="tab hidden">
     <div class="page-title"><div><h1>Products</h1><p>Main owner screen: cost, price, profit and margin.</p></div><button onclick="exportProductsCSV()">Export CSV</button></div>
-    <div class="toolbar">
-      <input id="productSearch" list="productSearchSuggestions" placeholder="Search product, category, brand or branch..." oninput="renderProducts()"><datalist id="productSearchSuggestions"></datalist>
-      <select id="productBrandFilter" onchange="renderProducts()"><option value="">All Brands</option></select>
-      <select id="productBranchFilter" onchange="renderProducts()"><option value="">All Branches</option></select>
-      <select id="productSort" onchange="renderProducts()"><option value="profit_desc">Profit High to Low</option><option value="margin_desc">Margin High to Low</option><option value="name_asc">Name A-Z</option><option value="cost_desc">Cost High to Low</option></select>
-    </div>
-    <div class="card">
-      <h3 id="productFormTitle">Create / Update Product</h3>
+
+    <details class="card collapsible-card" id="productCreatePanel">
+      <summary><span>Create / Update Product</span></summary>
       <div class="grid three">
-        <div><label>Product Name</label><input id="productName" list="productNameSuggestions" placeholder="Chicken Steam Momo"><datalist id="productNameSuggestions"></datalist></div>
-        <div><label>Category</label><input id="productCategory" list="productCategorySuggestions" placeholder="Steam Momo"><datalist id="productCategorySuggestions"></datalist></div>
-        <div><label>Brand</label><select id="productBrand"></select></div>
+        <div><label>Product Name</label><input id="productName" placeholder="Chicken Steam Momo"></div>
+        <div><label>Category</label><input id="productCategory" placeholder="Steam Momo"></div>
         <div><label>Branch</label><select id="productBranch"></select></div>
         <div><label>Offline Price</label><input id="offlinePrice" type="number"></div>
         <div><label>Online Price</label><input id="onlinePrice" type="number"></div>
@@ -63,53 +59,219 @@
         <div><label>Commission %</label><input id="commissionPercent" type="number" value="35"></div>
         <div><label>Manual Product Cost Override</label><input id="manualProductCost" type="number" placeholder="Optional"></div>
       </div>
+      <input id="productBrand" class="hidden" type="hidden">
       <div class="actions"><button onclick="saveProductV15()" class="btn-success">Save Product</button><button onclick="clearProductForm()" class="btn-secondary">Clear</button><button onclick="openProductRecipeBuilder()">Add Recipes</button></div>
       <div id="productOutput"></div>
+    </details>
+
+    <details class="card collapsible-card" id="productImportPanel">
+      <summary><span>Import Products</span></summary>
+      <p class="muted">Upload CSV/Excel with columns like Product Name, Category, Branch, Offline Price, Online Price, Packaging Cost, Commission %, Manual Product Cost.</p>
+      <input type="file" id="productFile" accept=".csv,.xlsx,.xls">
+      <button onclick="importEntity('products','productFile')" class="btn-success">Import Products</button>
+      <div id="productImportResults"></div>
+    </details>
+
+    <details class="card collapsible-card" id="productRecipeBuilderPanel">
+      <summary><span>Product Recipe Builder</span></summary>
+      <p class="muted">Select a saved product, attach recipes and quantities used.</p>
+      <div class="grid three">
+        <div><label>Product</label><select id="builderProduct"></select></div>
+        <div><label>Recipe</label><select id="builderRecipe"></select></div>
+        <div><label>Quantity Used</label><input id="builderQty" type="number"></div>
+        <div><label>Unit</label><select id="builderUnit"></select></div>
+      </div>
+      <button onclick="addProductRecipe()" class="btn-success">Attach Recipe</button>
+      <div id="productRecipeList"></div>
+    </details>
+
+    <div class="card list-card">
+      <div class="list-card-header"><h3>Product List</h3><p class="muted">Search, filter, sort and bulk update products.</p></div>
+      <div class="filter-panel list-filter-panel">
+        <div class="filter-panel-header"><div><h4>Filters</h4><p class="muted">Narrow down the product list before reviewing margins.</p></div></div>
+        <div class="filter-grid product-filter-grid">
+          <div class="field field-wide"><label>Search Products</label><input id="productSearch" placeholder="Search product, category or branch..." oninput="renderProducts()"></div>
+          <div class="field"><label>Branch</label><select id="productBranchFilter" onchange="renderProducts()"><option value="">All Branches</option></select></div>
+          <div class="field"><label>Sort By</label><select id="productSort" onchange="renderProducts()"><option value="profit_desc">Profit High to Low</option><option value="margin_desc">Margin High to Low</option><option value="name_asc">Name A-Z</option><option value="cost_desc">Cost High to Low</option></select></div>
+        </div>
+      </div>
+      <select id="productBrandFilter" class="hidden"><option value="">All Brands</option></select>
+      <div class="bulk-actions-card hidden" id="bulkProductActions">
+        <h4>Bulk Product Actions</h4>
+        <p class="muted">Visible only when multiple products are selected.</p>
+        <div class="bulk-bar">
+          <div class="bulk-count" id="selectedProductCount">0 selected</div>
+          <div><label>Assign Category</label><input id="bulkProductCategory" placeholder="Steam Momo"></div>
+          <div><label>Assign Branch</label><select id="bulkProductBranch"></select></div>
+          <div><button onclick="bulkUpdateProducts()" class="btn-success">Update Selected</button><button onclick="bulkDeleteProducts()" class="btn-danger">Delete Selected</button></div>
+        </div>
+        <select id="bulkProductBrand" class="hidden"></select>
+        <p class="danger-zone-note">Deleting selected records requires typing DELETE.</p>
+      </div>
+      <div class="table-scroll" id="productsTable"></div>
     </div>
-    <div class="card"><h3>Import Products</h3><p class="muted">Upload CSV/Excel with columns like Product Name, Category, Brand, Branch, Offline Price, Online Price, Packaging Cost, Commission %, Manual Product Cost.</p><input type="file" id="productFile" accept=".csv,.xlsx,.xls"><button onclick="importEntity('products','productFile')" class="btn-success">Import Products</button><div id="productImportResults"></div></div>
-    <div class="card"><h3>Product Recipe Builder</h3><p class="muted">Select a saved product, attach recipes and quantities used.</p><div class="grid three"><div><label>Product</label><select id="builderProduct"></select></div><div><label>Recipe</label><select id="builderRecipe"></select></div><div><label>Quantity Used</label><input id="builderQty" type="number"></div><div><label>Unit</label><input id="builderUnit" placeholder="g, ml, piece, portion"></div></div><button onclick="addProductRecipe()" class="btn-success">Attach Recipe</button><div id="productRecipeList"></div></div>
-    <div class="card"><h3>Bulk Product Actions</h3><p class="muted">Select multiple products from the table below, then update category, brand, branch or delete them together.</p><div class="bulk-bar"><div class="bulk-count" id="selectedProductCount">0 selected</div><div><label>Assign Category</label><input id="bulkProductCategory" list="bulkProductCategorySuggestions" placeholder="Steam Momo"><datalist id="bulkProductCategorySuggestions"></datalist></div><div><label>Assign Brand</label><select id="bulkProductBrand"></select></div><div><label>Assign Branch</label><select id="bulkProductBranch"></select></div><div><button onclick="bulkUpdateProducts()" class="btn-success">Update Selected</button><button onclick="bulkDeleteProducts()" class="btn-danger">Delete Selected</button></div></div><p class="danger-zone-note">Deleting selected records requires typing DELETE.</p></div>
-    <div id="productsTable"></div>
   </section>
 
   <section id="recipes" class="tab hidden">
     <div class="page-title"><div><h1>Recipe Management</h1><p>Build fillings, dough, chutney, sauces and calculate cost per unit.</p></div><button onclick="exportRecipesCSV()">Export CSV</button></div>
-    <div class="card"><h3>Create / Update Recipe</h3><div class="grid three"><div><label>Recipe Name</label><input id="recipeName" placeholder="Chicken Filling"></div><div><label>Category</label><select id="recipeCategory"><option>Filling</option><option>Dough</option><option>Chutney</option><option>Sauce</option><option>Masala</option><option>Marinade</option><option>Beverage</option><option>Dessert</option><option>Other</option></select></div><div><label>Yield Quantity</label><input id="recipeYieldQty" type="number" placeholder="1200"></div><div><label>Yield Unit</label><input id="recipeYieldUnit" placeholder="g/ml/piece/portion"></div><div><label>Status</label><select id="recipeActive"><option value="true">Active</option><option value="false">Inactive</option></select></div><div><label>Notes</label><input id="recipeNotes"></div></div><button onclick="saveRecipe()" class="btn-success">Save Recipe</button><button onclick="clearRecipeForm()" class="btn-secondary">Clear</button></div>
-    <div class="card"><h3>Recipe Ingredients</h3><div class="grid three"><div><label>Recipe</label><select id="recipeItemRecipe"></select></div><div><label>Ingredient</label><select id="recipeItemIngredient"></select></div><div><label>Quantity</label><input id="recipeItemQty" type="number"></div><div><label>Unit</label><input id="recipeItemUnit" placeholder="g, kg, ml, l, piece"></div><div><label>Waste %</label><input id="recipeItemWaste" type="number" value="0"></div></div><button onclick="addRecipeItem()" class="btn-success">Add Ingredient</button><div id="recipeItemList"></div></div>
-    <div class="toolbar"><input id="recipeSearch" placeholder="Search recipe..." oninput="renderRecipes()"></div><div id="recipesTable"></div>
+    <details class="card collapsible-card" id="recipeCreatePanel">
+      <summary><span>Create / Update Recipe</span></summary>
+      <div class="grid three">
+        <div><label>Recipe Name</label><input id="recipeName" placeholder="Chicken Filling"></div>
+        <div><label>Category</label><select id="recipeCategory"><option>Filling</option><option>Dough</option><option>Chutney</option><option>Sauce</option><option>Masala</option><option>Marinade</option><option>Beverage</option><option>Dessert</option><option>Other</option></select></div>
+        <div><label>Yield Quantity</label><input id="recipeYieldQty" type="number" placeholder="1200"></div>
+        <div><label>Yield Unit</label><select id="recipeYieldUnit"></select></div>
+        <div><label>Status</label><select id="recipeActive"><option value="true">Active</option><option value="false">Inactive</option></select></div>
+        <div><label>Notes</label><input id="recipeNotes"></div>
+      </div>
+      <button onclick="saveRecipe()" class="btn-success">Save Recipe</button><button onclick="clearRecipeForm()" class="btn-secondary">Clear</button>
+    </details>
+    <details class="card collapsible-card" id="recipeIngredientPanel">
+      <summary><span>Recipe Ingredients</span></summary>
+      <div class="grid three">
+        <div><label>Recipe</label><select id="recipeItemRecipe"></select></div>
+        <div><label>Ingredient</label><select id="recipeItemIngredient"></select></div>
+        <div><label>Quantity</label><input id="recipeItemQty" type="number"></div>
+        <div><label>Unit</label><select id="recipeItemUnit"></select></div>
+        <div><label>Waste %</label><input id="recipeItemWaste" type="number" value="0"></div>
+      </div>
+      <button onclick="addRecipeItem()" class="btn-success">Add Ingredient</button>
+      <div id="recipeItemList"></div>
+    </details>
+    <div class="card list-card">
+      <div class="list-card-header"><h3>Recipe List</h3><p class="muted">Search recipes by name or category.</p></div>
+      <div class="filter-panel list-filter-panel">
+        <div class="filter-panel-header"><div><h4>Filters</h4><p class="muted">Find recipe costing records faster.</p></div></div>
+        <div class="filter-grid one">
+          <div class="field field-wide"><label>Search Recipes</label><input id="recipeSearch" placeholder="Search recipe..." oninput="renderRecipes()"></div>
+        </div>
+      </div>
+      <div class="table-scroll" id="recipesTable"></div>
+    </div>
   </section>
 
   <section id="ingredients" class="tab hidden">
     <div class="page-title"><div><h1>Ingredient Master</h1><p>Effective cost after wastage is calculated automatically.</p></div><button onclick="exportIngredientsCSV()">Export CSV</button></div>
     <div id="ingredientStats" class="kpi-grid"></div>
-    <div class="card"><h3>Create / Update Ingredient</h3><div class="grid three"><div><label>Ingredient Name</label><input id="ingredientName" list="ingredientNameSuggestions"><datalist id="ingredientNameSuggestions"></datalist></div><div><label>Category</label><input id="ingredientCategory" list="ingredientCategorySuggestions" placeholder="Protein, Vegetable, Sauce..."><datalist id="ingredientCategorySuggestions"></datalist></div><div><label>Purchase Price</label><input id="purchasePrice" type="number"></div><div><label>Purchase Unit</label><input id="purchaseUnit" placeholder="kg, litre, piece"></div><div><label>Consumption Unit</label><input id="consumptionUnit" placeholder="g, ml, piece"></div><div><label>Conversion Quantity</label><input id="conversionQuantity" type="number" placeholder="1000 if 1 kg = 1000 g"></div><div><label>Wastage %</label><input id="wastagePercent" type="number" value="0"></div><div><label>Status</label><select id="ingredientActive"><option value="true">Active</option><option value="false">Inactive</option></select></div></div><p class="muted">Example: Purchase Unit = kg, Consumption Unit = g, Conversion Quantity = 1000.</p><button onclick="saveIngredient()" class="btn-success">Save Ingredient</button><button onclick="clearIngredientForm()" class="btn-secondary">Clear</button></div>
-    <div class="card"><div class="toolbar"><input id="ingredientSearch" list="ingredientSearchSuggestions" placeholder="Search ingredient, category or unit..." oninput="renderIngredients()"><datalist id="ingredientSearchSuggestions"></datalist><select id="ingredientFilter" onchange="renderIngredients()"><option value="All">All Categories</option></select></div><h3>Bulk Ingredient Actions</h3><p class="muted">Select multiple ingredients from the table below, then update category or units together.</p><div class="bulk-bar"><div class="bulk-count" id="selectedIngredientCount">0 selected</div><div><label>Assign Category</label><input id="bulkIngredientCategory" list="bulkIngredientCategorySuggestions" placeholder="Protein"><datalist id="bulkIngredientCategorySuggestions"></datalist></div><div><label>Purchase Unit</label><input id="bulkPurchaseUnit" list="bulkPurchaseUnitSuggestions" placeholder="kg"><datalist id="bulkPurchaseUnitSuggestions"></datalist></div><div><label>Consumption Unit</label><input id="bulkConsumptionUnit" list="bulkConsumptionUnitSuggestions" placeholder="g"><datalist id="bulkConsumptionUnitSuggestions"></datalist></div><div><label>Conversion Qty</label><input id="bulkConversionQuantity" type="number" placeholder="1000"></div><div><button onclick="bulkUpdateIngredients()" class="btn-success">Update Selected</button><button onclick="bulkDeleteIngredients()" class="btn-danger">Delete Selected</button></div></div><p class="danger-zone-note">Deleting selected records requires typing DELETE.</p><h3>Import Ingredients</h3><p class="muted">Need a format? Use Export CSV even when table is empty to download a sample schema.</p><input type="file" id="ingredientFile" accept=".csv,.xlsx,.xls"><button onclick="importEntity('ingredients','ingredientFile')">Import Ingredients</button><div id="ingredientImportResults"></div><div id="ingredientTable"></div></div>
+    <details class="card collapsible-card" id="ingredientCreatePanel">
+      <summary><span>Create / Update Ingredient</span></summary>
+      <div class="grid three">
+        <div><label>Ingredient Name</label><input id="ingredientName" placeholder="Chicken, Onion, Garlic..."></div>
+        <div><label>Category</label><input id="ingredientCategory" placeholder="Protein, Vegetable, Sauce..."></div>
+        <div><label>Purchase Price</label><input id="purchasePrice" type="number"></div>
+        <div><label>Purchase Unit</label><select id="purchaseUnit"></select></div>
+        <div><label>Consumption Unit</label><select id="consumptionUnit"></select></div>
+        <div><label>Conversion Quantity</label><input id="conversionQuantity" type="number" placeholder="1000"></div>
+        <div><label>Wastage %</label><input id="wastagePercent" type="number" value="0"></div>
+        <div><label>Status</label><select id="ingredientActive"><option value="true">Active</option><option value="false">Inactive</option></select></div>
+      </div>
+      <button onclick="saveIngredient()" class="btn-success">Save Ingredient</button><button onclick="clearIngredientForm()" class="btn-secondary">Clear</button>
+    </details>
+    <details class="card collapsible-card" id="ingredientImportPanel">
+      <summary><span>Import Ingredients</span></summary>
+      <p class="muted">Need a format? Use Export CSV even when table is empty to download a sample schema.</p>
+      <input type="file" id="ingredientFile" accept=".csv,.xlsx,.xls">
+      <button onclick="importEntity('ingredients','ingredientFile')">Import Ingredients</button>
+      <div id="ingredientImportResults"></div>
+    </details>
+    <div class="card list-card">
+      <div class="list-card-header"><h3>Ingredient List</h3><p class="muted">Search, filter and bulk update ingredient data.</p></div>
+      <div class="filter-panel list-filter-panel">
+        <div class="filter-panel-header"><div><h4>Filters</h4><p class="muted">Filter ingredient master data by category or unit.</p></div></div>
+        <div class="filter-grid two-one">
+          <div class="field field-wide"><label>Search Ingredients</label><input id="ingredientSearch" placeholder="Search ingredient, category or unit..." oninput="renderIngredients()"></div>
+          <div class="field"><label>Category</label><select id="ingredientFilter" onchange="renderIngredients()"><option value="All">All Categories</option></select></div>
+        </div>
+      </div>
+      <div class="bulk-actions-card hidden" id="bulkIngredientActions">
+        <h4>Bulk Ingredient Actions</h4>
+        <p class="muted">Visible only when multiple ingredients are selected.</p>
+        <div class="bulk-bar">
+          <div class="bulk-count" id="selectedIngredientCount">0 selected</div>
+          <div><label>Assign Category</label><input id="bulkIngredientCategory" placeholder="Protein"></div>
+          <div><label>Purchase Unit</label><select id="bulkPurchaseUnit"></select></div>
+          <div><label>Consumption Unit</label><select id="bulkConsumptionUnit"></select></div>
+          <div><label>Conversion Qty</label><input id="bulkConversionQuantity" type="number" placeholder="1000"></div>
+          <div><button onclick="bulkUpdateIngredients()" class="btn-success">Update Selected</button><button onclick="bulkDeleteIngredients()" class="btn-danger">Delete Selected</button></div>
+        </div>
+        <p class="danger-zone-note">Deleting selected records requires typing DELETE.</p>
+      </div>
+      <div class="table-scroll" id="ingredientTable"></div>
+    </div>
   </section>
 
   <section id="sales" class="tab hidden">
     <div class="page-title"><div><h1>Sales Import</h1><p>No manual sales entry. Upload Petpooja CSV/Excel and map columns.</p></div></div>
-    <div class="card"><h3>Upload Sales File</h3><input type="file" id="salesFile" accept=".csv,.xlsx,.xls"><button onclick="loadSalesImportFile()">Load File</button><div id="salesMapping"></div><div id="salesImportResults"></div></div>
-    <div class="card"><h3>Imported Sales</h3><div id="salesTable"></div></div>
+    <details class="card collapsible-card" open><summary><span>Upload Sales File</span></summary><input type="file" id="salesFile" accept=".csv,.xlsx,.xls"><button onclick="loadSalesImportFile()">Load File</button><div id="salesMapping"></div><div id="salesImportResults"></div></details>
+    <div class="card list-card"><h3>Imported Sales</h3><div class="table-scroll" id="salesTable"></div></div>
   </section>
 
   <section id="expenses" class="tab hidden">
     <div class="page-title"><div><h1>Day Book / Expense Tracker</h1><p>Track daily spend and compare it against earnings.</p></div><button onclick="exportExpensesCSV()">Export CSV</button></div>
-    <div class="card"><h3>Add Expense</h3><div class="grid three"><div><label>Date</label><input id="expenseDate" type="date"></div><div><label>Brand</label><select id="expenseBrand"></select></div><div><label>Branch</label><select id="expenseBranch"></select></div><div><label>Category</label><select id="expenseCategory"><option>Raw Material</option><option>Packaging</option><option>Salary</option><option>Utilities</option><option>Marketing</option><option>Transport</option><option>Rent</option><option>Miscellaneous</option></select></div><div><label>Description</label><input id="expenseDescription"></div><div><label>Amount</label><input id="expenseAmount" type="number"></div><div><label>Notes</label><input id="expenseNotes"></div></div><button onclick="saveExpense()" class="btn-success">Save Expense</button><button onclick="clearExpenseForm()" class="btn-secondary">Clear</button></div>
-    <div class="card"><h3>Import Expenses</h3><input type="file" id="expenseFile" accept=".csv,.xlsx,.xls"><button onclick="importEntity('expenses','expenseFile')">Import Expenses</button><div id="expenseImportResults"></div></div>
-    <div id="expensesAnalytics" class="kpi-grid"></div><div id="expensesTable"></div>
+    <details class="card collapsible-card" id="expenseCreatePanel"><summary><span>Add Expense</span></summary><div class="grid three"><div><label>Date</label><input id="expenseDate" type="date"></div><input id="expenseBrand" class="hidden" type="hidden"><div><label>Branch</label><select id="expenseBranch"></select></div><div><label>Category</label><select id="expenseCategory"><option>Raw Material</option><option>Packaging</option><option>Salary</option><option>Utilities</option><option>Marketing</option><option>Transport</option><option>Rent</option><option>Miscellaneous</option></select></div><div><label>Paid By</label><input id="expensePaidBy" placeholder="Shivam"></div><div><label>Paid To</label><input id="expensePaidTo" placeholder="Vendor"></div><div><label>Item Name</label><input id="expenseItemName" placeholder="Chicken"></div><div><label>Quantity</label><input id="expenseQuantity" type="number"></div><div><label>Dr / Rate</label><input id="expenseUnitRate" type="number"></div><div><label>Total Amount</label><input id="expenseAmount" type="number"></div><div><label>Cr / Cash Received</label><input id="expenseCashReceived" type="number"></div><div><label>Balance</label><input id="expenseBalance" type="number"></div><div><label>Notes</label><input id="expenseNotes"></div></div><button onclick="saveExpense()" class="btn-success">Save Expense</button><button onclick="clearExpenseForm()" class="btn-secondary">Clear</button></details>
+    <details class="card collapsible-card" id="expenseImportPanel"><summary><span>Import Expenses</span></summary><input type="file" id="expenseFile" accept=".csv,.xlsx,.xls"><button onclick="importEntity('expenses','expenseFile')">Import Expenses</button><div id="expenseImportResults"></div></details>
+    <div class="expense-summary-section">
+      <div id="expensesAnalytics" class="kpi-grid"></div>
+    </div>
+    <div class="card list-card daybook-list-card">
+      <div class="list-card-header">
+        <div><h3>Day Book Entries</h3><p class="muted">Imported and manually added expense rows.</p></div>
+      </div>
+      <div class="table-scroll" id="expensesTable"></div>
+    </div>
   </section>
 
   <section id="analytics" class="tab hidden">
-    <div class="page-title"><div><h1>Analytics</h1><p>Revenue, profit, margin and product performance.</p></div></div>
-    <div id="analyticsKPIs" class="kpi-grid"></div>
-    <div class="two-col"><div class="card"><h3>Revenue by Product</h3><div id="revenueByProduct"></div></div><div class="card"><h3>Profit by Product</h3><div id="profitByProduct"></div></div></div>
-    <div class="two-col"><div class="card"><h3>Highest Margin Products</h3><div id="highestMarginProducts"></div></div><div class="card"><h3>Lowest Margin Products</h3><div id="lowestMarginProducts"></div></div></div>
+    <div class="page-title"><div><h1>Analytics</h1><p>Revenue, profit, expenses and margins with date filters.</p></div><button onclick="resetAnalyticsFilters()" class="btn-secondary">Clear Filters</button></div>
+    <div class="card filter-card analytics-filter-card standard-filter-card">
+      <div class="filter-panel-header analytics-filter-title"><div><h3>Analysis Filters</h3><p class="muted">Use this to understand a specific date range, branch, or product.</p></div></div>
+      <div class="filter-grid four analytics-filter-grid">
+        <div class="field"><label>Start Date</label><input id="analyticsStartDate" type="date" onchange="renderAnalytics()"></div>
+        <div class="field"><label>End Date</label><input id="analyticsEndDate" type="date" onchange="renderAnalytics()"></div>
+        <div class="field"><label>Branch</label><select id="analyticsBranchFilter" onchange="renderAnalytics()"></select></div>
+        <div class="field"><label>Product</label><select id="analyticsProductFilter" onchange="renderAnalytics()"></select></div>
+      </div>
+    </div>
+    <div id="analyticsKPIs" class="kpi-grid analytics-kpi-grid"></div>
+    <div id="analyticsSecondaryKPIs" class="kpi-grid analytics-kpi-grid secondary"></div>
+    <div class="analytics-grid">
+      <div class="card analytics-card wide"><h3>Revenue by Product</h3><div id="revenueByProduct"></div></div>
+      <div class="card analytics-card"><h3>Profit by Product</h3><div id="profitByProduct"></div></div>
+      <div class="card analytics-card"><h3>Revenue by Branch</h3><div id="revenueByBranch"></div></div>
+      <div class="card analytics-card"><h3>Expenses by Category</h3><div id="expenseByCategory"></div></div>
+    </div>
+    <div class="card analytics-card"><h3>Daily Revenue vs Expenses</h3><div class="table-scroll" id="dailyTrend"></div></div>
+    <div class="two-col analytics-table-pair"><div class="card analytics-card"><h3>Highest Margin Products</h3><div class="table-scroll" id="highestMarginProducts"></div></div><div class="card analytics-card"><h3>Lowest Margin Products</h3><div class="table-scroll" id="lowestMarginProducts"></div></div></div>
+    <div class="card analytics-card"><h3>Unmatched Petpooja Products</h3><p class="muted">These rows imported, but product names do not yet match your Product Master, so costing/profit may be incomplete.</p><div class="table-scroll" id="unmatchedSales"></div></div>
   </section>
 
   <section id="pricing" class="tab hidden">
-    <div class="page-title"><div><h1>Pricing & Discount Engine</h1><p>Calculate suggested offline/online price and discount impact.</p></div></div>
-    <div class="card"><h3>Pricing Engine</h3><div class="grid three"><div><label>Product Cost</label><input id="pricingProductCost" type="number"></div><div><label>Packaging Cost</label><input id="pricingPackagingCost" type="number"></div><div><label>Commission %</label><input id="pricingCommission" type="number" value="35"></div><div><label>GST %</label><input id="pricingGST" type="number" value="5"></div><div><label>Desired Margin %</label><input id="pricingDesiredMargin" type="number" value="30"></div></div><button onclick="calculatePricing()" class="btn-success">Calculate Suggested Price</button><div id="pricingOutput"></div></div>
-    <div class="card"><h3>Discount Engine</h3><div class="grid three"><div><label>Menu Price</label><input id="discountPrice" type="number"></div><div><label>Product Cost</label><input id="discountCost" type="number"></div><div><label>Commission %</label><input id="discountCommission" type="number" value="35"></div><div><label>Discount Type</label><select id="discountType"><option value="flat">Flat</option><option value="percent">Percentage</option><option value="percent_cap">Percentage With Cap</option></select></div><div><label>Discount Value</label><input id="discountValue" type="number"></div><div><label>Discount Cap</label><input id="discountCap" type="number"></div></div><button onclick="calculateDiscountEngine()" class="btn-success">Calculate Discount Impact</button><div id="discountOutput"></div></div>
+    <div class="page-title"><div><h1>Pricing & Discount Engine</h1><p>Calculate online price so online profit matches offline profit, even after discounts and commission.</p></div></div>
+    <details class="card collapsible-card" open><summary><span>Online Price From Offline Profit</span></summary>
+      <p class="muted">Use this when you know your offline price and want the online menu price to give the same rupee profit after GST, commission and discount.</p>
+      <div class="grid three">
+        <div><label>Select Product (Optional)</label><select id="pricingProductSelect" onchange="loadPricingProduct()"></select></div>
+        <div><label>Product Cost</label><input id="pricingProductCost" type="number" placeholder="Food/product cost"></div>
+        <div><label>Packaging Cost</label><input id="pricingPackagingCost" type="number" placeholder="Packaging"></div>
+        <div><label>Offline Selling Price</label><input id="pricingOfflinePrice" type="number" placeholder="Customer pays offline"></div>
+        <div><label>Commission %</label><input id="pricingCommission" type="number" value="35"></div>
+        <div><label>GST %</label><input id="pricingGST" type="number" value="5"></div>
+        <div><label>Discount Type</label><select id="pricingDiscountType"><option value="none">No Discount</option><option value="flat">Flat Discount</option><option value="percent">Percentage Discount</option><option value="percent_cap">Percentage With Cap</option></select></div>
+        <div><label>Discount Value</label><input id="pricingDiscountValue" type="number" placeholder="50 or 20"></div>
+        <div><label>Discount Cap</label><input id="pricingDiscountCap" type="number" placeholder="For capped discounts"></div>
+      </div>
+      <div class="action-row"><button onclick="calculatePricing()" class="btn-success">Calculate Matching Online Price</button></div><div id="pricingOutput"></div>
+      <div class="inline-check-card">
+        <h4>Check Existing Online Price</h4>
+        <p class="muted">Enter any online menu price to see estimated profit and margin after discount, GST and commission.</p>
+        <div class="grid three">
+          <div><label>Online Menu Price To Check</label><input id="pricingManualOnlinePrice" type="number" placeholder="Example: 199"></div>
+        </div>
+        <button onclick="calculateEnteredOnlinePrice()" class="btn-secondary">Check Profit & Margin</button>
+        <div id="pricingManualOutput"></div>
+      </div>
+    </details>
+    <details class="card collapsible-card" open><summary><span>Discount Engine</span></summary><div class="grid three"><div><label>Menu Price</label><input id="discountPrice" type="number"></div><div><label>Product Cost</label><input id="discountCost" type="number"></div><div><label>Commission %</label><input id="discountCommission" type="number" value="35"></div><div><label>Discount Type</label><select id="discountType"><option value="flat">Flat</option><option value="percent">Percentage</option><option value="percent_cap">Percentage With Cap</option></select></div><div><label>Discount Value</label><input id="discountValue" type="number"></div><div><label>Discount Cap</label><input id="discountCap" type="number"></div></div><button onclick="calculateDiscountEngine()" class="btn-success">Calculate Discount Impact</button><div id="discountOutput"></div></details>
   </section>
 
   <section id="cart" class="tab hidden">
@@ -119,15 +281,25 @@
 
   <section id="users" class="tab hidden">
     <div class="page-title"><div><h1>Users & Permissions</h1><p>Prepare user roles and access scopes for the future authentication phase.</p></div></div>
-    <div class="card"><h3 id="userFormTitle">Create / Update User</h3><div class="grid three"><div><label>Name</label><input id="userName" placeholder="Operations Manager"></div><div><label>Email</label><input id="userEmail" type="email" placeholder="user@example.com"></div><div><label>Role</label><select id="userRole"></select></div><div><label>Brand Scope</label><select id="userBrand"></select></div><div><label>Branch Scope</label><select id="userBranch"></select></div><div><label>Status</label><select id="userActive"><option value="true">Active</option><option value="false">Inactive</option></select></div><div><label>Notes</label><input id="userNotes" placeholder="Can access sales and expenses"></div></div><button onclick="saveAppUser()" class="btn-success">Save User</button><button onclick="clearUserForm()" class="btn-secondary">Clear</button></div>
-    <div class="card"><div class="toolbar"><input id="userSearch" placeholder="Search user, email, role, brand or branch..." oninput="renderUsers()"></div><div id="usersTable"></div></div>
+    <details class="card collapsible-card" id="userCreatePanel"><summary><span>Create / Update User</span></summary><div class="grid three"><div><label>Name</label><input id="userName" placeholder="Operations Manager"></div><div><label>Email</label><input id="userEmail" type="email" placeholder="user@example.com"></div><div><label>Role</label><select id="userRole"></select></div><input id="userBrand" class="hidden" type="hidden"><div><label>Branch Scope</label><select id="userBranch"></select></div><div><label>Status</label><select id="userActive"><option value="true">Active</option><option value="false">Inactive</option></select></div><div><label>Notes</label><input id="userNotes" placeholder="Can access sales and expenses"></div></div><button onclick="saveAppUser()" class="btn-success">Save User</button><button onclick="clearUserForm()" class="btn-secondary">Clear</button></details>
+    <div class="card list-card">
+      <div class="list-card-header"><h3>User List</h3><p class="muted">Search prepared user records and permission scopes.</p></div>
+      <div class="filter-panel list-filter-panel">
+        <div class="filter-panel-header"><div><h4>Filters</h4><p class="muted">Find users by name, email, role or branch.</p></div></div>
+        <div class="filter-grid one">
+          <div class="field field-wide"><label>Search Users</label><input id="userSearch" placeholder="Search user, email, role or branch..." oninput="renderUsers()"></div>
+        </div>
+      </div>
+      <div class="table-scroll" id="usersTable"></div>
+    </div>
   </section>
 
   <section id="imports" class="tab hidden">
-    <div class="page-title"><div><h1>Settings & Data Setup</h1><p>Brands, branches and global settings.</p></div></div>
-    <div class="two-col"><div class="card"><h3 id="brandFormTitle">Create / Update Brand</h3><div class="grid"><div><label>Brand Name</label><input id="brandName" placeholder="Khumbuka"></div><div><label>Brand Code</label><input id="brandCode" placeholder="KHUM"></div><div><label>Description</label><input id="brandDescription" placeholder="Momo brand"></div><div><label>Status</label><select id="brandActive"><option value="true">Active</option><option value="false">Inactive</option></select></div></div><button onclick="saveBrand()" class="btn-success">Save Brand</button><button onclick="clearBrandForm()" class="btn-secondary">Clear</button><div class="settings-table-wrap" id="brandsTable"></div></div><div class="card"><h3 id="branchFormTitle">Create / Update Branch</h3><div class="grid"><div><label>Brand</label><select id="branchBrand"></select></div><div><label>Branch Name</label><input id="branchName" placeholder="Sector 56 Cloud Kitchen"></div><div><label>Location</label><input id="branchLocation" placeholder="Gurgaon"></div><div><label>Address</label><input id="branchAddress" placeholder="Full address"></div><div><label>Status</label><select id="branchActive"><option value="true">Active</option><option value="false">Inactive</option></select></div></div><button onclick="saveBranch()" class="btn-success">Save Branch</button><button onclick="clearBranchForm()" class="btn-secondary">Clear</button><div class="settings-table-wrap" id="branchesTable"></div></div></div>
-    <div class="card"><h3>Global Settings</h3><div class="grid three"><div><label>Default Commission %</label><input id="defaultCommission" type="number" value="35"></div><div><label>Default GST %</label><input id="defaultGST" type="number" value="5"></div></div><button onclick="saveSettings()" class="btn-success">Save Settings</button></div>
-    <div class="card"><h3>Supabase Migration</h3><p>Run <code>supabase/sql/khumbuka_v15_schema.sql</code> first. For this patch, also run <code>supabase/sql/app_users_permissions_patch.sql</code> once in your testing Supabase project.</p></div>
+    <div class="page-title"><div><h1>Settings & Branch Setup</h1><p>Khumbuka branch setup and global settings.</p></div></div>
+    <div class="settings-grid"><div class="card"><h3 id="branchFormTitle">Create / Update Branch</h3><div class="grid"><input id="branchBrand" class="hidden" type="hidden"><div><label>Branch Name</label><input id="branchName" placeholder="Sector 56 Cloud Kitchen"></div><div><label>Location</label><input id="branchLocation" placeholder="Gurgaon"></div><div><label>Address</label><input id="branchAddress" placeholder="Full address"></div><div><label>Status</label><select id="branchActive"><option value="true">Active</option><option value="false">Inactive</option></select></div></div><button onclick="saveBranch()" class="btn-success">Save Branch</button><button onclick="clearBranchForm()" class="btn-secondary">Clear</button><div class="settings-table-wrap table-scroll" id="branchesTable"></div></div><div class="card"><h3>Global Settings</h3><div class="grid"><div><label>Default Commission %</label><input id="defaultCommission" type="number" value="35"></div><div><label>Default GST %</label><input id="defaultGST" type="number" value="5"></div></div><button onclick="saveSettings()" class="btn-success">Save Settings</button></div></div>
+    <div class="card"><h3 id="unitFormTitle">Unit Master</h3><p class="muted">These values power purchase unit, consumption unit, recipe unit and product recipe unit dropdowns.</p><div class="grid three"><div><label>Unit Name</label><input id="unitName" placeholder="Kilogram"></div><div><label>Symbol</label><input id="unitSymbol" placeholder="kg"></div><div><label>Type</label><select id="unitType"><option value="weight">Weight</option><option value="volume">Volume</option><option value="piece">Piece</option><option value="portion">Portion</option><option value="other">Other</option></select></div><div><label>Sort Order</label><input id="unitSort" type="number" value="100"></div><div><label>Status</label><select id="unitActive"><option value="true">Active</option><option value="false">Inactive</option></select></div></div><button onclick="saveUnit()" class="btn-success">Save Unit</button><button onclick="clearUnitForm()" class="btn-secondary">Clear</button><div class="settings-table-wrap table-scroll" id="unitsTable"></div></div>
+    <div id="brandsTable" class="hidden"></div>
+    <input id="brandName" class="hidden" type="hidden"><input id="brandCode" class="hidden" type="hidden"><input id="brandDescription" class="hidden" type="hidden"><select id="brandActive" class="hidden"><option value="true">Active</option></select><h3 id="brandFormTitle" class="hidden"></h3>
   </section>
 </main>
 
@@ -142,10 +314,10 @@
 <script src="js/products.js"></script>
 <script src="js/sales.js"></script>
 <script src="js/expenses.js"></script>
-<script src="js/analytics.js"></script>
-<script src="js/pricing.js"></script>
 <script src="js/cart.js"></script>
 <script src="js/imports.js"></script>
+<script src="js/analytics.js"></script>
+<script src="js/pricing.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>
