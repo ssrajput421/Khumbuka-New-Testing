@@ -3,6 +3,15 @@
 
 /manifest.webmanifest
   Content-Type: application/manifest+json
+  Cache-Control: no-cache, no-store, must-revalidate
+
+/index.html
+  Cache-Control: no-cache, no-store, must-revalidate
+
+/css/*.css
+  Cache-Control: no-cache
+
+/js/*.js
   Cache-Control: no-cache
 
 /assets/icons/*

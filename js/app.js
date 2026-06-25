@@ -3,11 +3,12 @@ async function refreshAll(render=true, notify=false){
  await loadAll();
  renderProductSelectors();
  renderRecipeSelectors();
+ if(typeof renderAssumptions==='function') renderAssumptions();
  renderUnitSelectors();
  if(typeof renderPricingProductSelector==='function') renderPricingProductSelector();
  if(typeof refreshGlobalSmartSuggestions==='function') refreshGlobalSmartSuggestions();
  if(render){
-  renderDashboard(); renderProducts(); renderRecipes(); renderIngredients(); renderSales(); renderExpenses(); renderAnalytics(); renderCartSimulator(); renderSettings(); renderUsers(); if(typeof refreshGlobalSmartSuggestions==='function') refreshGlobalSmartSuggestions(); if(typeof renderDataWarnings==='function') renderDataWarnings();
+  renderDashboard(); renderProducts(); renderRecipes(); renderIngredients(); renderSales(); renderExpenses(); renderAnalytics(); renderCartSimulator(); renderSettings(); renderUsers(); if(typeof renderAssumptions==='function') renderAssumptions(); if(typeof refreshGlobalSmartSuggestions==='function') refreshGlobalSmartSuggestions(); if(typeof renderDataWarnings==='function') renderDataWarnings();
  }
  if(notify) showToast('Latest data loaded successfully.');
 }
@@ -39,6 +40,7 @@ function calculateDataWarnings(){
   const recipes=state.recipes||[];
   const recipeItems=state.recipeItems||[];
   const productRecipes=state.productRecipes||[];
+  const productComponents=state.productComponents||[];
   const sales=state.sales||[];
   const expenses=state.expenses||[];
   const users=state.appUsers||[];
@@ -63,6 +65,19 @@ function calculateDataWarnings(){
   const recipeWithoutItems=recipes.filter(r=>!recipeItems.some(x=>x.recipe_id===r.id));
   if(recipeWithoutItems.length) warnings.push(warningRow('recipe_without_items','medium','Recipes',`${recipeWithoutItems.length} recipe(s) have no ingredients`,'Attach ingredients to recipes before using them for product costing.','recipes'));
 
+  const recipeItemsMissingQty=recipeItems.filter(x=>num(x.quantity)<=0 || !x.unit);
+  if(recipeItemsMissingQty.length) warnings.push(warningRow('recipe_item_missing_qty','medium','Recipes',`${recipeItemsMissingQty.length} recipe ingredient row(s) missing quantity/unit`,'Each recipe ingredient should have a quantity and unit for accurate costing.','recipes'));
+
+  const inactiveRecipeIngredients=recipeItems.filter(x=>ingredients.find(i=>i.id===x.ingredient_id)?.active===false);
+  if(inactiveRecipeIngredients.length) warnings.push(warningRow('recipe_uses_inactive_ingredient','low','Recipes',`${inactiveRecipeIngredients.length} recipe row(s) use inactive ingredients`,'Check recipes that still depend on inactive ingredients.','recipes'));
+
+  const recipeUnitMismatches=recipeItems.filter(x=>{
+    const ing=ingredients.find(i=>i.id===x.ingredient_id);
+    if(!ing || !x.unit || !ing.consumption_unit || typeof unitFamily!=='function') return false;
+    return unitFamily(x.unit)!==unitFamily(ing.consumption_unit);
+  });
+  if(recipeUnitMismatches.length) warnings.push(warningRow('recipe_unit_mismatch','medium','Recipes',`${recipeUnitMismatches.length} recipe row(s) may have unit mismatch`,'Recipe ingredient units should match the ingredient consumption unit family.','recipes'));
+
   const productsMissingCost=products.filter(p=>{
     const cost = typeof computedProductCost === 'function' ? computedProductCost(p) : num(p.product_cost || p.manual_product_cost);
     return cost <= 0;
@@ -72,7 +87,7 @@ function calculateDataWarnings(){
   const productsMissingPrices=products.filter(p=>num(p.offline_price)<=0 || num(p.online_price)<=0);
   if(productsMissingPrices.length) warnings.push(warningRow('product_missing_prices','medium','Products',`${productsMissingPrices.length} product(s) missing online/offline price`,'Add both prices to compare online and offline profitability.','products'));
 
-  const productsWithoutRecipes=products.filter(p=>!productRecipes.some(x=>x.product_id===p.id) && num(p.manual_product_cost || p.product_cost)<=0);
+  const productsWithoutRecipes=products.filter(p=>!productRecipes.some(x=>x.product_id===p.id) && !productComponents.some(x=>x.product_id===p.id) && num(p.manual_product_cost || p.product_cost)<=0);
   if(productsWithoutRecipes.length) warnings.push(warningRow('product_without_recipes','medium','Products',`${productsWithoutRecipes.length} product(s) have no recipe mapping`,'Product recipe mapping gives more accurate costing than manual cost only.','products'));
 
   const unmatchedSales=sales.filter(s=>!s.product_id);

@@ -4,6 +4,14 @@ function renderPricingProductSelector(){
  const current=el.value;
  el.innerHTML='<option value="">Manual pricing</option>'+(state.products||[]).map(p=>`<option value="${p.id}" ${p.id===current?'selected':''}>${escapeHtml(p.name)}${p.category?` · ${escapeHtml(p.category)}`:''}</option>`).join('');
  if(current) el.value=current;
+ togglePricingTargetInputs();
+}
+function togglePricingTargetInputs(){
+ const mode=val('pricingTargetMode')||'offline_profit';
+ const profitWrap=byId('pricingDesiredProfitWrap');
+ const marginWrap=byId('pricingDesiredMarginWrap');
+ if(profitWrap) profitWrap.style.display = mode==='profit_amount' ? '' : 'none';
+ if(marginWrap) marginWrap.style.display = mode==='margin_percent' ? '' : 'none';
 }
 function loadPricingProduct(){
  const id=val('pricingProductSelect');
@@ -54,6 +62,36 @@ function onlineProfitForMenuPrice(menuPrice, totalCost, commissionRate, gstRate,
  const profit=taxableRevenue-commission-totalCost;
  return {menuPrice,discount,customerPays,taxableRevenue,commission,gst,profit,margin:margin(profit,taxableRevenue)};
 }
+function pricingTargetDetails(totalCost, offlinePrice, commissionRate, gstRate){
+ const mode=val('pricingTargetMode')||'offline_profit';
+ let targetProfit=0;
+ let targetMargin=null;
+ let targetLabel='Match Offline Profit';
+ let offlineTaxable=offlinePrice>0 ? offlinePrice/Math.max(0.01,1+gstRate) : 0;
+ let offlineGst=offlinePrice>0 ? offlinePrice-offlineTaxable : 0;
+ let offlineProfit=offlinePrice>0 ? offlineTaxable-totalCost : null;
+ let offlineMargin=offlineTaxable>0 ? margin(offlineProfit,offlineTaxable) : null;
+ if(mode==='offline_profit'){
+  if(offlinePrice<=0) return {error:'Enter offline selling price, or switch Pricing Target to Desired Profit / Desired Margin.'};
+  targetProfit=offlineProfit;
+  targetLabel='Match Offline Profit';
+ }
+ if(mode==='profit_amount'){
+  targetProfit=num(val('pricingDesiredProfit'));
+  if(targetProfit<0) return {error:'Desired profit cannot be negative.'};
+  targetLabel=`Desired Profit ${money(targetProfit)}`;
+ }
+ if(mode==='margin_percent'){
+  targetMargin=num(val('pricingDesiredMargin'))/100;
+  if(targetMargin<=0) return {error:'Enter desired margin percentage above 0.'};
+  const maxMargin=Math.max(0,1-commissionRate);
+  if(targetMargin>=maxMargin) return {error:`Desired margin is too high for ${pct(commissionRate*100)} commission. Maximum possible before product cost is below ${pct(maxMargin*100)}.`};
+  const requiredTaxable=totalCost/Math.max(0.01,(1-commissionRate)-targetMargin);
+  targetProfit=requiredTaxable*targetMargin;
+  targetLabel=`Desired Margin ${pct(targetMargin*100)}`;
+ }
+ return {mode,targetProfit,targetMargin,targetLabel,offlineTaxable,offlineGst,offlineProfit,offlineMargin};
+}
 function calculatePricing(){
  const productCost=num(val('pricingProductCost'));
  const packaging=num(val('pricingPackagingCost'));
@@ -65,37 +103,36 @@ function calculatePricing(){
  const discountValue=num(val('pricingDiscountValue'));
  const discountCap=num(val('pricingDiscountCap'));
  if(totalCost<=0) return showWarning('Enter product cost and/or packaging cost.');
- if(offlinePrice<=0) return showWarning('Enter offline selling price.');
  if(commissionRate>=0.95) return showWarning('Commission is too high. Use a value below 95%.');
- const offlineTaxable=offlinePrice/Math.max(0.01,1+gstRate);
- const offlineGst=offlinePrice-offlineTaxable;
- const offlineProfit=offlineTaxable-totalCost;
- const offlineMargin=margin(offlineProfit,offlineTaxable);
- const requiredFinalCustomerPays=((offlineProfit+totalCost)/Math.max(0.01,1-commissionRate))*(1+gstRate);
+ const target=pricingTargetDetails(totalCost,offlinePrice,commissionRate,gstRate);
+ if(target.error) return showWarning(target.error);
+ const requiredFinalCustomerPays=((target.targetProfit+totalCost)/Math.max(0.01,1-commissionRate))*(1+gstRate);
  const exactMenuPrice=solveMenuPriceFromFinal(requiredFinalCustomerPays,discountType,discountValue,discountCap);
  const roundedMenuPrice=roundUpTo(exactMenuPrice,1);
  const roundedMenuPrice5=roundUpTo(exactMenuPrice,5);
  const exact=onlineProfitForMenuPrice(exactMenuPrice,totalCost,commissionRate,gstRate,discountType,discountValue,discountCap);
  const rounded=onlineProfitForMenuPrice(roundedMenuPrice,totalCost,commissionRate,gstRate,discountType,discountValue,discountCap);
  const rounded5=onlineProfitForMenuPrice(roundedMenuPrice5,totalCost,commissionRate,gstRate,discountType,discountValue,discountCap);
- const profitDiff=rounded.profit-offlineProfit;
+ const profitDiff=rounded.profit-target.targetProfit;
+ const marginDiff=target.targetMargin===null ? null : rounded.margin-(target.targetMargin*100);
+ const offlineBlock = target.offlineProfit===null ? `<p class="small muted">Offline price is optional for Desired Profit / Desired Margin mode.</p>` : `<div><h4>Offline Reference</h4><div class="stat-row"><span>Offline Selling Price</span><strong>${money(offlinePrice)}</strong></div><div class="stat-row"><span>Taxable Revenue</span><strong>${money(target.offlineTaxable)}</strong></div><div class="stat-row"><span>GST Portion</span><strong>${money(target.offlineGst)}</strong></div><div class="stat-row"><span>Total Cost</span><strong>${money(totalCost)}</strong></div><div class="stat-row"><span>Offline Profit</span><strong class="${target.offlineProfit>=0?'profit':'loss'}">${money(target.offlineProfit)}</strong></div><div class="stat-row"><span>Offline Margin</span><strong>${pct(target.offlineMargin)}</strong></div></div>`;
  byId('pricingOutput').innerHTML=`<div class="result-card pricing-result-card">
-  <h3>Online Price Recommendation</h3>
-  <p class="small">Logic: Offline profit is calculated after removing GST from offline selling price. Online price is then solved so profit after discount, GST and commission matches that same rupee profit.</p>
+  <h3>Target Online Price Recommendation</h3>
+  <p class="small">Logic: The engine solves the online menu price needed to hit your selected target after discount, GST and commission.</p>
   <div class="pricing-summary-grid">
    <div class="price-tile"><span>Total Product Cost</span><strong>${money(totalCost)}</strong><small>Product cost + packaging</small></div>
-   <div class="price-tile"><span>Offline Profit Target</span><strong class="${offlineProfit>=0?'profit':'loss'}">${money(offlineProfit)}</strong><small>${pct(offlineMargin)} margin before GST</small></div>
+   <div class="price-tile"><span>Pricing Target</span><strong class="${target.targetProfit>=0?'profit':'loss'}">${target.targetLabel}</strong><small>Target profit: ${money(target.targetProfit)}</small></div>
    <div class="price-tile recommended"><span>Suggested Online Menu Price</span><strong>${money(roundedMenuPrice)}</strong><small>Rounded to nearest ₹1</small></div>
    <div class="price-tile"><span>Suggested Round Price</span><strong>${money(roundedMenuPrice5)}</strong><small>Rounded to nearest ₹5</small></div>
   </div>
   <div class="two-col">
-   <div><h4>Offline Sale</h4><div class="stat-row"><span>Offline Selling Price</span><strong>${money(offlinePrice)}</strong></div><div class="stat-row"><span>Taxable Revenue</span><strong>${money(offlineTaxable)}</strong></div><div class="stat-row"><span>GST Portion</span><strong>${money(offlineGst)}</strong></div><div class="stat-row"><span>Total Cost</span><strong>${money(totalCost)}</strong></div><div class="stat-row"><span>Profit Target</span><strong>${money(offlineProfit)}</strong></div></div>
-   <div><h4>Online Sale at ${money(roundedMenuPrice)}</h4><div class="stat-row"><span>Customer Pays After Discount</span><strong>${money(rounded.customerPays)}</strong></div><div class="stat-row"><span>Discount</span><strong>${money(rounded.discount)}</strong></div><div class="stat-row"><span>Taxable Revenue</span><strong>${money(rounded.taxableRevenue)}</strong></div><div class="stat-row"><span>Commission</span><strong>${money(rounded.commission)}</strong></div><div class="stat-row"><span>GST Portion</span><strong>${money(rounded.gst)}</strong></div><div class="stat-row"><span>Online Profit</span><strong class="${rounded.profit>=offlineProfit?'profit':'loss'}">${money(rounded.profit)}</strong></div><div class="stat-row"><span>Profit Difference vs Offline</span><strong class="${profitDiff>=0?'profit':'loss'}">${money(profitDiff)}</strong></div></div>
+   ${offlineBlock}
+   <div><h4>Online Sale at ${money(roundedMenuPrice)}</h4><div class="stat-row"><span>Customer Pays After Discount</span><strong>${money(rounded.customerPays)}</strong></div><div class="stat-row"><span>Discount</span><strong>${money(rounded.discount)}</strong></div><div class="stat-row"><span>Taxable Revenue</span><strong>${money(rounded.taxableRevenue)}</strong></div><div class="stat-row"><span>Commission</span><strong>${money(rounded.commission)}</strong></div><div class="stat-row"><span>GST Portion</span><strong>${money(rounded.gst)}</strong></div><div class="stat-row"><span>Online Profit</span><strong class="${rounded.profit>=target.targetProfit?'profit':'loss'}">${money(rounded.profit)}</strong></div><div class="stat-row"><span>Profit Difference vs Target</span><strong class="${profitDiff>=0?'profit':'loss'}">${money(profitDiff)}</strong></div>${marginDiff===null?'':`<div class="stat-row"><span>Margin Difference vs Target</span><strong class="${marginDiff>=0?'profit':'loss'}">${pct(marginDiff)}</strong></div>`}</div>
   </div>
-  <div class="table-scroll"><table class="data-table structured-table compact-table"><thead><tr><th>Scenario</th><th>Menu Price</th><th>Discount</th><th>Customer Pays</th><th>Commission</th><th>Profit</th><th>Margin</th></tr></thead><tbody>
-   <tr><td>Exact mathematical price</td><td>${money(exact.menuPrice)}</td><td>${money(exact.discount)}</td><td>${money(exact.customerPays)}</td><td>${money(exact.commission)}</td><td>${money(exact.profit)}</td><td>${pct(exact.margin)}</td></tr>
-   <tr><td>Rounded ₹1</td><td>${money(rounded.menuPrice)}</td><td>${money(rounded.discount)}</td><td>${money(rounded.customerPays)}</td><td>${money(rounded.commission)}</td><td>${money(rounded.profit)}</td><td>${pct(rounded.margin)}</td></tr>
-   <tr><td>Rounded ₹5</td><td>${money(rounded5.menuPrice)}</td><td>${money(rounded5.discount)}</td><td>${money(rounded5.customerPays)}</td><td>${money(rounded5.commission)}</td><td>${money(rounded5.profit)}</td><td>${pct(rounded5.margin)}</td></tr>
+  <div class="table-scroll"><table class="data-table structured-table compact-table"><thead><tr><th>Scenario</th><th>Menu Price</th><th>Discount</th><th>Customer Pays</th><th>Commission</th><th>Profit</th><th>Margin</th><th>Diff vs Target</th></tr></thead><tbody>
+   <tr><td>Exact mathematical price</td><td>${money(exact.menuPrice)}</td><td>${money(exact.discount)}</td><td>${money(exact.customerPays)}</td><td>${money(exact.commission)}</td><td>${money(exact.profit)}</td><td>${pct(exact.margin)}</td><td>${money(exact.profit-target.targetProfit)}</td></tr>
+   <tr><td>Rounded ₹1</td><td>${money(rounded.menuPrice)}</td><td>${money(rounded.discount)}</td><td>${money(rounded.customerPays)}</td><td>${money(rounded.commission)}</td><td>${money(rounded.profit)}</td><td>${pct(rounded.margin)}</td><td>${money(rounded.profit-target.targetProfit)}</td></tr>
+   <tr><td>Rounded ₹5</td><td>${money(rounded5.menuPrice)}</td><td>${money(rounded5.discount)}</td><td>${money(rounded5.customerPays)}</td><td>${money(rounded5.commission)}</td><td>${money(rounded5.profit)}</td><td>${pct(rounded5.margin)}</td><td>${money(rounded5.profit-target.targetProfit)}</td></tr>
   </tbody></table></div>
  </div>`;
 }

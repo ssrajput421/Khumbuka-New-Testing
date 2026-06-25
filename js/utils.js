@@ -62,6 +62,12 @@ function uniqueCleanValues(values){ return [...new Set((values||[]).map(v=>Strin
 function setDatalistOptions(id, values){ const el=byId(id); if(!el) return; el.innerHTML=uniqueCleanValues(values).map(v=>`<option value="${escapeHtml(v)}"></option>`).join(''); }
 
 const smartSuggestStore = {};
+let smartSuggestActiveInputId = null;
+let dropdownCloseSuppressedUntil = 0;
+function isTouchLikeDevice(){ return window.matchMedia?.('(max-width: 760px)').matches || 'ontouchstart' in window || navigator.maxTouchPoints > 0; }
+function suppressDropdownClose(ms=900){ dropdownCloseSuppressedUntil = Math.max(dropdownCloseSuppressedUntil, Date.now()+ms); }
+function dropdownCloseSuppressed(){ return Date.now() < dropdownCloseSuppressedUntil; }
+
 
 function suggestionItemsFromValues(values, typeLabel='Suggestion'){
   return uniqueCleanValues(values).map(v=>({value:v, label:v, meta:typeLabel}));
@@ -93,9 +99,33 @@ function setSmartSuggestions(inputId, values){
     if(e.key==='ArrowDown' && panel && !panel.classList.contains('hidden')){ e.preventDefault(); panel.querySelector('.smart-suggest-option')?.focus(); }
   });
 }
-function hideSmartSuggestions(){ const panel=byId('smartSuggestPanel'); if(panel) panel.classList.add('hidden'); }
+function hideSmartSuggestions(){
+  const panel=byId('smartSuggestPanel');
+  if(panel) panel.classList.add('hidden');
+  smartSuggestActiveInputId = null;
+}
+function repositionSmartSuggestions(){
+  const panel=byId('smartSuggestPanel');
+  if(!panel || panel.classList.contains('hidden')) return;
+  const input = byId(smartSuggestActiveInputId) || (document.activeElement?.classList?.contains('smart-input') ? document.activeElement : null);
+  if(!input){ hideSmartSuggestions(); return; }
+  const rect=input.getBoundingClientRect();
+  panel.style.position='fixed';
+  panel.style.left=`${Math.max(8, rect.left)}px`;
+  const smartAvailableBelow=window.innerHeight-rect.bottom-10;
+  const smartAvailableAbove=rect.top-10;
+  const smartAbove=smartAvailableBelow<220 && smartAvailableAbove>smartAvailableBelow;
+  const smartMaxHeight=Math.max(160, Math.min(360, smartAbove?smartAvailableAbove-6:smartAvailableBelow-6));
+  panel.style.top= smartAbove ? `${Math.max(10, rect.top-smartMaxHeight-6)}px` : `${Math.min(window.innerHeight-10-smartMaxHeight, rect.bottom+6)}px`;
+  panel.style.maxHeight=`${smartMaxHeight}px`;
+  panel.style.overflow='auto';
+  panel.style.width=`${Math.max(rect.width,280)}px`;
+}
+
 function showSmartSuggestions(inputId){
   const input=byId(inputId); if(!input) return;
+  smartSuggestActiveInputId = inputId;
+  suppressDropdownClose(900);
   let panel=byId('smartSuggestPanel');
   if(!panel){ panel=document.createElement('div'); panel.id='smartSuggestPanel'; panel.className='smart-suggest-panel hidden'; document.body.appendChild(panel); bindDropdownScrollContainment(panel); }
   bindDropdownScrollContainment(panel);
@@ -103,13 +133,20 @@ function showSmartSuggestions(inputId){
   const values=(smartSuggestStore[inputId]||[]).filter(v=>!raw || `${v.value} ${v.label} ${v.meta} ${v.badge}`.toLowerCase().includes(raw)).slice(0,14);
   if(!values.length){ hideSmartSuggestions(); return; }
   const rect=input.getBoundingClientRect();
-  panel.style.left=`${rect.left + window.scrollX}px`;
-  panel.style.top=`${rect.bottom + window.scrollY + 6}px`;
+  panel.style.position='fixed';
+  panel.style.left=`${Math.max(8, rect.left)}px`;
+  const smartAvailableBelow=window.innerHeight-rect.bottom-10;
+  const smartAvailableAbove=rect.top-10;
+  const smartAbove=smartAvailableBelow<220 && smartAvailableAbove>smartAvailableBelow;
+  const smartMaxHeight=Math.max(160, Math.min(360, smartAbove?smartAvailableAbove-6:smartAvailableBelow-6));
+  panel.style.top= smartAbove ? `${Math.max(10, rect.top-smartMaxHeight-6)}px` : `${Math.min(window.innerHeight-10-smartMaxHeight, rect.bottom+6)}px`;
+  panel.style.maxHeight=`${smartMaxHeight}px`;
+  panel.style.overflow='auto';
   panel.style.width=`${Math.max(rect.width,280)}px`;
   panel.innerHTML=`<div class="smart-suggest-header">Suggestions</div>`+values.map(v=>`<button type="button" class="smart-suggest-option" data-value="${escapeHtml(v.value)}"><span><strong>${escapeHtml(v.label)}</strong>${v.meta?`<small>${escapeHtml(v.meta)}</small>`:''}</span>${v.badge?`<em>${escapeHtml(v.badge)}</em>`:''}</button>`).join('');
   panel.classList.remove('hidden');
   panel.querySelectorAll('.smart-suggest-option').forEach((btn,idx)=>{
-    btn.onmousedown=(e)=>{ e.preventDefault(); input.value=btn.dataset.value || ''; hideSmartSuggestions(); input.dispatchEvent(new Event('input',{bubbles:true})); input.dispatchEvent(new Event('change',{bubbles:true})); };
+    btn.onmousedown=(e)=>{ e.preventDefault(); suppressDropdownClose(500); input.value=btn.dataset.value || ''; hideSmartSuggestions(); input.dispatchEvent(new Event('input',{bubbles:true})); input.dispatchEvent(new Event('change',{bubbles:true})); };
     btn.onkeydown=(e)=>{
       const options=[...panel.querySelectorAll('.smart-suggest-option')];
       if(e.key==='ArrowDown'){ e.preventDefault(); (options[idx+1]||options[0]).focus(); }
@@ -149,20 +186,63 @@ document.addEventListener('click', e=>{ const p=byId('smartSuggestPanel'); if(!p
 function bindDropdownScrollContainment(panel){
   if(!panel || panel.dataset.scrollContainmentBound==='true') return;
   panel.dataset.scrollContainmentBound='true';
-  ['touchstart','touchmove','wheel'].forEach(evt=>panel.addEventListener(evt, e=>e.stopPropagation(), {passive:true}));
+  ['pointerdown','mousedown','touchstart'].forEach(evt=>panel.addEventListener(evt, e=>{ suppressDropdownClose(1200); e.stopPropagation(); }, {passive:true}));
+  ['touchmove','wheel','scroll'].forEach(evt=>panel.addEventListener(evt, e=>{ suppressDropdownClose(1200); e.stopPropagation(); }, {passive:true}));
 }
 function isDropdownPanelScrollTarget(target){
   const smart=byId('smartSuggestPanel');
   const kh=byId('khSelectPanel');
   return !!(target && ((smart && smart.contains(target)) || (kh && kh.contains(target))));
 }
+
+function positionDropdownPanelNearTrigger(panel, trigger, minWidth=280){
+  if(!panel || !trigger) return;
+  const rect=trigger.getBoundingClientRect();
+  const gap=6;
+  const margin=10;
+  const availableBelow=window.innerHeight - rect.bottom - margin;
+  const availableAbove=rect.top - margin;
+  const preferAbove=availableBelow < 260 && availableAbove > availableBelow;
+  const maxHeight=Math.max(180, Math.min(420, preferAbove ? availableAbove - gap : availableBelow - gap));
+  panel.style.position='fixed';
+  panel.style.left=`${Math.max(8, rect.left)}px`;
+  panel.style.width=`${Math.max(rect.width, minWidth)}px`;
+  panel.style.maxHeight=`${maxHeight}px`;
+  panel.style.overflow='auto';
+  if(preferAbove){
+    panel.style.top=`${Math.max(margin, rect.top - maxHeight - gap)}px`;
+  }else{
+    panel.style.top=`${Math.min(window.innerHeight - margin - maxHeight, rect.bottom + gap)}px`;
+  }
+}
+
+function repositionKhSelectPanel(){
+  const panel=byId('khSelectPanel');
+  const select=khSelectState?.activeSelect;
+  if(!panel || panel.classList.contains('hidden') || !select) return;
+  const trigger = select.closest('.kh-select-shell')?.querySelector('.kh-select-trigger');
+  if(!trigger){ closeKhSelectPanel(); return; }
+  positionDropdownPanelNearTrigger(panel, trigger, 280);
+}
+function refreshOpenDropdownPositions(){ repositionSmartSuggestions(); if(typeof repositionKhSelectPanel==='function') repositionKhSelectPanel(); }
 function handleDropdownWindowScroll(e){
   if(isDropdownPanelScrollTarget(e.target)) return;
+  if(dropdownCloseSuppressed()) { refreshOpenDropdownPositions(); return; }
+  const active=document.activeElement;
+  const activeIsDropdownInput = active?.classList?.contains('smart-input') || active?.classList?.contains('kh-select-search');
+  if(isTouchLikeDevice() && (activeIsDropdownInput || khSelectState?.activeSelect)) { refreshOpenDropdownPositions(); return; }
   hideSmartSuggestions();
   if(typeof closeKhSelectPanel==='function') closeKhSelectPanel();
 }
-window.addEventListener('scroll', handleDropdownWindowScroll, true);
-window.addEventListener('resize', ()=>{ hideSmartSuggestions(); if(typeof closeKhSelectPanel==='function') closeKhSelectPanel(); });
+window.addEventListener('scroll', handleDropdownWindowScroll, false);
+window.addEventListener('resize', ()=>{
+  if(isTouchLikeDevice() && (smartSuggestActiveInputId || khSelectState?.activeSelect || dropdownCloseSuppressed())){ setTimeout(refreshOpenDropdownPositions, 80); return; }
+  hideSmartSuggestions(); if(typeof closeKhSelectPanel==='function') closeKhSelectPanel();
+});
+if(window.visualViewport){
+  window.visualViewport.addEventListener('resize', ()=>setTimeout(refreshOpenDropdownPositions, 80));
+  window.visualViewport.addEventListener('scroll', ()=>setTimeout(refreshOpenDropdownPositions, 80));
+}
 
 function excelSerialToDate(value){
   if(value instanceof Date) return value.toISOString().slice(0,10);
@@ -365,6 +445,7 @@ function buildKhSelectPanel(select, filterText=''){
   panel.querySelectorAll('.kh-select-option').forEach((btn, idx)=>{
     btn.onmousedown = e=>{
       e.preventDefault();
+      suppressDropdownClose(500);
       const optionIndex = Number(btn.dataset.index);
       const opt = select.options[optionIndex];
       if(!opt || opt.disabled) return;
@@ -385,17 +466,39 @@ function buildKhSelectPanel(select, filterText=''){
   });
   const search = byId('khSelectSearch');
   if(search){
-    search.oninput = () => buildKhSelectPanel(select, search.value);
+    search.oninput = () => {
+      suppressDropdownClose(900);
+      const typed = search.value;
+      const caretStart = typeof search.selectionStart === 'number' ? search.selectionStart : typed.length;
+      const caretEnd = typeof search.selectionEnd === 'number' ? search.selectionEnd : caretStart;
+      buildKhSelectPanel(select, typed);
+      requestAnimationFrame(()=>{
+        const nextSearch = byId('khSelectSearch');
+        if(!nextSearch) return;
+        nextSearch.focus({preventScroll:true});
+        try{
+          const len=String(nextSearch.value||'').length;
+          nextSearch.setSelectionRange(Math.min(caretStart,len), Math.min(caretEnd,len));
+        }catch(e){}
+      });
+    };
     search.onkeydown = e=>{
       if(e.key==='ArrowDown'){ e.preventDefault(); panel.querySelector('.kh-select-option:not([disabled])')?.focus(); }
       if(e.key==='Escape'){ e.preventDefault(); closeKhSelectPanel(); select.closest('.kh-select-shell')?.querySelector('.kh-select-trigger')?.focus(); }
     };
-    setTimeout(()=>search.focus(), 20);
+    if(!isTouchLikeDevice()) setTimeout(()=>{
+      const active = byId('khSelectSearch');
+      if(active && document.activeElement !== active){
+        active.focus({preventScroll:true});
+        try{ const len=String(active.value||'').length; active.setSelectionRange(len,len); }catch(e){}
+      }
+    }, 20);
   }
   return panel;
 }
 function openKhSelectPanel(select){
   if(!select || select.disabled) return;
+  suppressDropdownClose(900);
   hideSmartSuggestions?.();
   closeKhSelectPanel();
   khSelectState.activeSelect = select;
@@ -403,10 +506,7 @@ function openKhSelectPanel(select){
   shell?.classList.add('open');
   const trigger = shell?.querySelector('.kh-select-trigger');
   const panel = buildKhSelectPanel(select, '');
-  const rect = trigger.getBoundingClientRect();
-  panel.style.left = `${rect.left + window.scrollX}px`;
-  panel.style.top = `${rect.bottom + window.scrollY + 6}px`;
-  panel.style.width = `${Math.max(rect.width, 280)}px`;
+  positionDropdownPanelNearTrigger(panel, trigger, 280);
   panel.classList.remove('hidden');
 }
 function enhanceKhumbukaSelect(select){
@@ -425,7 +525,7 @@ function enhanceKhumbukaSelect(select){
   trigger.innerHTML = `<span class="kh-select-value"></span><span class="kh-select-arrow"></span>`;
   shell.appendChild(trigger);
   updateKhSelectTrigger(select);
-  trigger.addEventListener('click', e=>{ e.preventDefault(); if(khSelectState.activeSelect === select){ closeKhSelectPanel(); } else { openKhSelectPanel(select); } });
+  trigger.addEventListener('click', e=>{ e.preventDefault(); suppressDropdownClose(900); if(khSelectState.activeSelect === select){ closeKhSelectPanel(); } else { openKhSelectPanel(select); } });
   trigger.addEventListener('keydown', e=>{
     if(['Enter',' ','ArrowDown'].includes(e.key)){ e.preventDefault(); openKhSelectPanel(select); }
     if(e.key==='Escape') closeKhSelectPanel();

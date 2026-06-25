@@ -52,6 +52,8 @@ async function loadAll(){
   state.recipeItems = await dbSelect('recipe_items',null);
   state.products = await dbSelect('products','name');
   state.productRecipes = await dbSelect('product_recipes',null);
+  state.productComponents = await dbSelect('product_components',null);
+  state.assumptions = await dbSelect('assumptions','sort_order');
   state.sales = await dbSelect('sales','sale_date');
   state.expenses = await dbSelect('expenses','expense_date');
   state.dailySalesSummaries = await dbSelect('daily_sales_summaries','sale_date');

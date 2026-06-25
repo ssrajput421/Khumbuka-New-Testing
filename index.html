@@ -8,13 +8,6 @@
 <link rel="stylesheet" href="css/style.css">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-<link rel="manifest" href="/manifest.webmanifest">
-<meta name="theme-color" content="#0f172a">
-<meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="Khumbuka">
-<link rel="apple-touch-icon" href="/assets/icons/icon-180.png">
-<link rel="stylesheet" href="/css/pwa.css">
 </head>
 <body>
 <div class="mobile-topbar"><button class="mobile-menu-button" onclick="toggleMobileMenu()">☰</button><div><strong>Khumbuka</strong><span>Profitability Intelligence</span></div><button class="mobile-refresh-button" onclick="manualRefresh()">↻</button></div>
@@ -29,6 +22,8 @@
   </div>
   <button data-tab="dashboard" onclick="showTab('dashboard')"><span class="icon">📊</span><span class="menu-text">Dashboard</span></button>
   <button data-tab="products" onclick="showTab('products')"><span class="icon">📦</span><span class="menu-text">Products</span></button>
+  <button data-tab="costAudit" onclick="showTab('costAudit')"><span class="icon">🧮</span><span class="menu-text">Cost Audit</span></button>
+  <button data-tab="assumptions" onclick="showTab('assumptions')"><span class="icon">⚖️</span><span class="menu-text">Assumptions</span></button>
   <button data-tab="recipes" onclick="showTab('recipes')"><span class="icon">🧾</span><span class="menu-text">Recipes</span></button>
   <button data-tab="ingredients" onclick="showTab('ingredients')"><span class="icon">🥬</span><span class="menu-text">Ingredients</span></button>
   <button data-tab="sales" onclick="showTab('sales')"><span class="icon">📥</span><span class="menu-text">Sales Import</span></button>
@@ -49,6 +44,49 @@
       <div class="card"><h3>Branch Performance</h3><div id="branchDashboard"></div></div>
     </div>
     <div class="card"><h3>Product Profitability Snapshot</h3><div id="dashboardProductTable"></div></div>
+  </section>
+
+
+
+  <section id="assumptions" class="tab hidden">
+    <div class="page-title"><div><h1>Assumptions</h1><p>Standard Khumbuka costing rules for momos, chutney, packaging and cooking.</p></div><button onclick="seedDefaultAssumptions()" class="btn-secondary">Seed Defaults</button></div>
+    <div class="card">
+      <h3>Momo Standard Assumptions</h3>
+      <p class="muted">These values are used by Product Cost Builder to calculate product components automatically from piece count.</p>
+      <div id="assumptionFormGrid" class="grid three"></div>
+      <div class="actions"><button onclick="saveAllAssumptions()" class="btn-success">Save Assumptions</button></div>
+    </div>
+    <div class="card list-card">
+      <div class="list-card-header"><h3>Assumption List</h3><p class="muted">Database values currently used by the builder.</p></div>
+      <div class="table-scroll" id="assumptionsTable"></div>
+    </div>
+  </section>
+
+
+  <section id="costAudit" class="tab hidden">
+    <div class="page-title">
+      <div><h1>Product Cost Audit</h1><p>Review product cost, component breakdown, profit, margin and missing data warnings across the menu.</p></div>
+      <button onclick="renderCostAudit()">Refresh Audit</button>
+    </div>
+    <div id="costAuditKPIs" class="kpi-grid"></div>
+    <div class="card filter-card standard-filter-card">
+      <div class="filter-panel-header"><div><h3>Audit Filters</h3><p class="muted">Find products with missing costs, low margin or component problems.</p></div></div>
+      <div class="filter-grid four">
+        <div class="field"><label>Search Product</label><input id="costAuditSearch" placeholder="Search product or category..." oninput="renderCostAudit()"></div>
+        <div class="field"><label>Branch</label><select id="costAuditBranchFilter" onchange="renderCostAudit()"><option value="">All Branches</option></select></div>
+        <div class="field"><label>Category</label><select id="costAuditCategoryFilter" onchange="renderCostAudit()"><option value="">All Categories</option></select></div>
+        <div class="field"><label>Status</label><select id="costAuditStatusFilter" onchange="renderCostAudit()"><option value="all">All Products</option><option value="warnings">Only Warnings</option><option value="clean">Clean Only</option><option value="missing_cost">Missing / Zero Cost</option></select></div>
+        <div class="field"><label>Sort By</label><select id="costAuditSort" onchange="renderCostAudit()"><option value="warnings_desc">Warnings High to Low</option><option value="cost_desc">Cost High to Low</option><option value="margin_asc">Offline Margin Low to High</option><option value="profit_asc">Offline Profit Low to High</option><option value="name_asc">Product A-Z</option></select></div>
+      </div>
+    </div>
+    <div class="card list-card">
+      <div class="list-card-header"><h3>Product Audit Table</h3><p class="muted">Click View to inspect the component-wise cost breakdown.</p></div>
+      <div class="table-scroll" id="costAuditTable"></div>
+    </div>
+    <div class="card list-card" id="costAuditDetailCard">
+      <div class="list-card-header"><h3>Product Audit Detail</h3><p class="muted">Select a product from the audit table.</p></div>
+      <div id="costAuditDetail"></div>
+    </div>
   </section>
 
   <section id="products" class="tab hidden">
@@ -80,19 +118,50 @@
     </details>
 
     <details class="card collapsible-card" id="productRecipeBuilderPanel">
-      <summary><span>Product Recipe Builder</span></summary>
-      <p class="muted">Select a saved product, attach recipes and quantities used.</p>
-      <div class="grid three">
-        <div><label>Product</label><select id="builderProduct"></select></div>
-        <div><label>Recipe</label><select id="builderRecipe"></select></div>
-        <div><label>Quantity Used</label><input id="builderQty" type="number"></div>
-        <div><label>Unit</label><select id="builderUnit"></select></div>
+      <summary><span>Product Cost Builder</span></summary>
+      <p class="muted">Build the final product cost from recipes and assumptions. For momos, enter pieces once and the app calculates filling, wrapper, chutney, packaging and cooking components.</p>
+
+      <div class="schema-note warning-note">
+        Product cost is now built from components. Recipe Master gives cost per gram/ml/piece; this builder decides how much of each recipe is used in one sellable order.
       </div>
-      <button onclick="addProductRecipe()" class="btn-success">Attach Recipe</button>
+      <h4>Product Cost Header</h4>
+      <div class="grid three">
+        <div><label>Product</label><select id="builderProduct" onchange="renderProductRecipes()"></select></div>
+        <div><label>Piece Count / Serving Count</label><input id="builderPieceCount" type="number" placeholder="6, 10, 12" value="6" oninput="syncProductComponentBuilder(false)"></div>
+        <div><label>Builder Mode</label><select id="builderReplaceMode"><option value="append">Add components one by one</option><option value="replace">Replace existing components on next auto-build</option></select></div>
+      </div>
+
+      <hr style="border:none;border-top:1px solid #e5e7eb;margin:18px 0">
+      <h4>Add Product Component</h4>
+      <p class="muted">Add components one by one, just like adding ingredients inside a recipe. Select a role and the app can auto-fill quantity using pieces and assumptions.</p>
+      <div class="grid three">
+        <div><label>Component Type</label><select id="builderComponentType" onchange="syncProductComponentBuilder(true)"><option value="recipe">Recipe</option><option value="ingredient">Ingredient</option><option value="fixed_cost">Fixed Cost</option></select></div>
+        <div><label>Component Role</label><select id="builderComponentRole" onchange="syncProductComponentBuilder(true)"><option value="filling">Filling</option><option value="wrapper">Wrapper / Dough</option><option value="red_chutney">Red Chilli Chutney</option><option value="mayo">Mayo</option><option value="nepali_chutney">Nepali Chutney</option><option value="packaging_set">Packaging Set</option><option value="cooking">Cooking / Steam / Fry</option><option value="coating">Coating</option><option value="other">Other</option></select></div>
+        <div><label>Recipe Component</label><select id="builderRecipe" onchange="syncProductComponentBuilder(true)"></select></div>
+        <div><label>Ingredient Component</label><select id="builderIngredient" onchange="syncProductComponentBuilder(true)"></select></div>
+        <div><label>Component Name</label><input id="builderComponentName" placeholder="Filling, Ragi wrapper, Red chutney"></div>
+        <div><label>Quantity Used</label><input id="builderQty" type="number" oninput="previewProductComponentRow()"></div>
+        <div><label>Unit</label><select id="builderUnit" onchange="previewProductComponentRow()"></select></div>
+        <div><label>Fixed Cost</label><input id="builderFixedCost" type="number" placeholder="Only for fixed cost" oninput="previewProductComponentRow()"></div>
+        <div><label>Quantity Mode</label><input id="builderQuantityMode" readonly placeholder="Auto / Manual"></div>
+      </div>
+      <div class="actions"><button onclick="addProductCostComponent()" class="btn-success">Add Component</button><button onclick="syncProductComponentBuilder(true)" class="btn-secondary">Auto-fill From Assumptions</button><button onclick="clearProductComponentBuilder()" class="btn-secondary">Clear Component</button></div>
+      <div id="momoBuilderPreview"></div>
+
+      <hr style="border:none;border-top:1px solid #e5e7eb;margin:18px 0">
+      <h4>Import Product Components</h4>
+      <p class="muted">Bulk upload final product cost rows. Existing rows are updated by Product + Component Type + Recipe/Ingredient/Component Name, so re-importing the same sheet will not duplicate rows.</p>
+      <div class="grid three">
+        <div><label>Product Components File</label><input type="file" id="productComponentsFile" accept=".csv,.xlsx,.xls"></div>
+        <div><label>Import Mode</label><select id="productComponentsImportMode"><option value="upsert">Update existing / add missing</option><option value="replace_product">Replace all components for products in file</option></select></div>
+        <div><label>Template</label><button onclick="downloadProductComponentsTemplate()" class="btn-secondary" type="button">Download Template</button></div>
+      </div>
+      <div class="actions"><button onclick="importProductComponentsFile()" class="btn-success">Import Product Components</button></div>
+      <div id="productComponentImportResults"></div>
       <div id="productRecipeList"></div>
     </details>
 
-    <div class="card list-card">
+    <div class="card list-card">    <div class="card list-card">
       <div class="list-card-header"><h3>Product List</h3><p class="muted">Search, filter, sort and bulk update products.</p></div>
       <div class="filter-panel list-filter-panel">
         <div class="filter-panel-header"><div><h4>Filters</h4><p class="muted">Narrow down the product list before reviewing margins.</p></div></div>
@@ -120,7 +189,19 @@
   </section>
 
   <section id="recipes" class="tab hidden">
-    <div class="page-title"><div><h1>Recipe Management</h1><p>Build fillings, dough, chutney, sauces and calculate cost per unit.</p></div><button onclick="exportRecipesCSV()">Export CSV</button></div>
+    <div class="page-title">
+      <div>
+        <h1>Recipe Master</h1>
+        <p>Build fillings, dough, chutney, sauces and calculate accurate recipe cost per gram, ml, piece or portion.</p>
+      </div>
+      <div class="page-actions">
+        <button onclick="exportRecipesCSV()">Export Recipes</button>
+        <button onclick="exportRecipeItemsCSV()" class="btn-secondary">Export Recipe Ingredients</button>
+      </div>
+    </div>
+
+    <div id="recipeMasterStats" class="kpi-grid compact-kpi-grid"></div>
+
     <details class="card collapsible-card" id="recipeCreatePanel">
       <summary><span>Create / Update Recipe</span></summary>
       <div class="grid three">
@@ -129,28 +210,58 @@
         <div><label>Yield Quantity</label><input id="recipeYieldQty" type="number" placeholder="1200"></div>
         <div><label>Yield Unit</label><select id="recipeYieldUnit"></select></div>
         <div><label>Status</label><select id="recipeActive"><option value="true">Active</option><option value="false">Inactive</option></select></div>
-        <div><label>Notes</label><input id="recipeNotes"></div>
+        <div><label>Notes</label><input id="recipeNotes" placeholder="For chicken steam momo filling"></div>
       </div>
-      <button onclick="saveRecipe()" class="btn-success">Save Recipe</button><button onclick="clearRecipeForm()" class="btn-secondary">Clear</button>
+      <div class="actions"><button onclick="saveRecipe()" class="btn-success">Save Recipe</button><button onclick="clearRecipeForm()" class="btn-secondary">Clear</button></div>
     </details>
-    <details class="card collapsible-card" id="recipeIngredientPanel">
-      <summary><span>Recipe Ingredients</span></summary>
-      <div class="grid three">
-        <div><label>Recipe</label><select id="recipeItemRecipe"></select></div>
-        <div><label>Ingredient</label><select id="recipeItemIngredient"></select></div>
-        <div><label>Quantity</label><input id="recipeItemQty" type="number"></div>
-        <div><label>Unit</label><select id="recipeItemUnit"></select></div>
-        <div><label>Waste %</label><input id="recipeItemWaste" type="number" value="0"></div>
+
+    <details class="card collapsible-card" id="recipeImportPanel">
+      <summary><span>Import Recipes & Ingredients</span></summary>
+      <div class="two-col recipe-import-grid">
+        <div class="import-mini-card">
+          <h4>Import Recipe Headers</h4>
+          <p class="muted">Use columns: recipe_name, category, yield_quantity, yield_unit, notes, active.</p>
+          <input type="file" id="recipeFile" accept=".csv,.xlsx,.xls">
+          <div class="actions"><button onclick="importRecipesFile()" class="btn-success">Import Recipes</button><button onclick="downloadRecipeTemplate()" class="btn-secondary">Download Template</button></div>
+        </div>
+        <div class="import-mini-card">
+          <h4>Import Recipe Ingredients</h4>
+          <p class="muted">Use columns: recipe_name, ingredient_name, quantity, unit, waste_percent.</p>
+          <input type="file" id="recipeItemsFile" accept=".csv,.xlsx,.xls">
+          <div class="actions"><button onclick="importRecipeItemsFile()" class="btn-success">Import Recipe Ingredients</button><button onclick="downloadRecipeItemsTemplate()" class="btn-secondary">Download Template</button></div>
+        </div>
       </div>
-      <button onclick="addRecipeItem()" class="btn-success">Add Ingredient</button>
-      <div id="recipeItemList"></div>
+      <div id="recipeImportResults"></div>
     </details>
+
+    <div class="recipe-workbench">
+      <details class="card collapsible-card recipe-builder-card" id="recipeIngredientPanel" open>
+        <summary><span>Recipe Builder</span></summary>
+        <div class="grid three">
+          <div><label>Recipe</label><select id="recipeItemRecipe" onchange="renderRecipeItems(); renderRecipeCostSummary();"></select></div>
+          <div><label>Ingredient</label><select id="recipeItemIngredient" onchange="syncRecipeIngredientUnit()"></select></div>
+          <div><label>Quantity Used</label><input id="recipeItemQty" type="number" placeholder="500"></div>
+          <div><label>Unit</label><select id="recipeItemUnit"></select></div>
+          <div><label>Recipe Waste %</label><input id="recipeItemWaste" type="number" value="0"></div>
+        </div>
+        <div class="actions"><button onclick="addRecipeItem()" class="btn-success">Add Ingredient</button><button onclick="clearRecipeItemForm()" class="btn-secondary">Clear Item</button></div>
+        <div id="recipeItemList" class="recipe-item-list"></div>
+      </details>
+
+      <div class="card recipe-summary-card">
+        <div class="list-card-header"><h3>Recipe Cost Summary</h3><p class="muted">Live costing for the selected recipe.</p></div>
+        <div id="recipeCostSummary"></div>
+      </div>
+    </div>
+
     <div class="card list-card">
-      <div class="list-card-header"><h3>Recipe List</h3><p class="muted">Search recipes by name or category.</p></div>
+      <div class="list-card-header"><h3>Recipe List</h3><p class="muted">Search recipes, review costs and duplicate similar fillings or sauces.</p></div>
       <div class="filter-panel list-filter-panel">
         <div class="filter-panel-header"><div><h4>Filters</h4><p class="muted">Find recipe costing records faster.</p></div></div>
-        <div class="filter-grid one">
-          <div class="field field-wide"><label>Search Recipes</label><input id="recipeSearch" placeholder="Search recipe..." oninput="renderRecipes()"></div>
+        <div class="filter-grid product-filter-grid">
+          <div class="field field-wide"><label>Search Recipes</label><input id="recipeSearch" placeholder="Search recipe, category or unit..." oninput="renderRecipes()"></div>
+          <div class="field"><label>Category</label><select id="recipeCategoryFilter" onchange="renderRecipes()"><option value="">All Categories</option></select></div>
+          <div class="field"><label>Sort By</label><select id="recipeSort" onchange="renderRecipes()"><option value="cost_desc">Cost High to Low</option><option value="unit_cost_desc">Unit Cost High to Low</option><option value="name_asc">Name A-Z</option><option value="category_asc">Category A-Z</option></select></div>
         </div>
       </div>
       <div class="table-scroll" id="recipesTable"></div>
@@ -261,13 +372,16 @@
         <div><label>Product Cost</label><input id="pricingProductCost" type="number" placeholder="Food/product cost"></div>
         <div><label>Packaging Cost</label><input id="pricingPackagingCost" type="number" placeholder="Packaging"></div>
         <div><label>Offline Selling Price</label><input id="pricingOfflinePrice" type="number" placeholder="Customer pays offline"></div>
+        <div><label>Pricing Target</label><select id="pricingTargetMode" onchange="togglePricingTargetInputs()"><option value="offline_profit">Match Offline Profit</option><option value="profit_amount">Desired Profit ₹</option><option value="margin_percent">Desired Margin %</option></select></div>
+        <div id="pricingDesiredProfitWrap"><label>Desired Profit ₹</label><input id="pricingDesiredProfit" type="number" placeholder="Example: 60"></div>
+        <div id="pricingDesiredMarginWrap"><label>Desired Margin %</label><input id="pricingDesiredMargin" type="number" placeholder="Example: 30"></div>
         <div><label>Commission %</label><input id="pricingCommission" type="number" value="35"></div>
         <div><label>GST %</label><input id="pricingGST" type="number" value="5"></div>
         <div><label>Discount Type</label><select id="pricingDiscountType"><option value="none">No Discount</option><option value="flat">Flat Discount</option><option value="percent">Percentage Discount</option><option value="percent_cap">Percentage With Cap</option></select></div>
         <div><label>Discount Value</label><input id="pricingDiscountValue" type="number" placeholder="50 or 20"></div>
         <div><label>Discount Cap</label><input id="pricingDiscountCap" type="number" placeholder="For capped discounts"></div>
       </div>
-      <div class="action-row"><button onclick="calculatePricing()" class="btn-success">Calculate Matching Online Price</button></div><div id="pricingOutput"></div>
+      <div class="action-row"><button onclick="calculatePricing()" class="btn-success">Calculate Target Online Price</button></div><div id="pricingOutput"></div>
       <div class="inline-check-card">
         <h4>Check Existing Online Price</h4>
         <p class="muted">Enter any online menu price to see estimated profit and margin after discount, GST and commission.</p>
@@ -317,7 +431,10 @@
 <script src="js/sidebar.js"></script>
 <script src="js/settings.js"></script>
 <script src="js/ingredients.js"></script>
+<script src="js/assumptions.js"></script>
 <script src="js/recipes.js"></script>
+<script src="js/costAudit.js"></script>
+<script src="js/costAuditPage.js"></script>
 <script src="js/products.js"></script>
 <script src="js/sales.js"></script>
 <script src="js/expenses.js"></script>
@@ -326,6 +443,5 @@
 <script src="js/analytics.js"></script>
 <script src="js/pricing.js"></script>
 <script src="js/app.js"></script>
-<script src="/js/pwa.js"></script>
 </body>
 </html>

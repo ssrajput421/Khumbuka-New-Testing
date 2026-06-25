@@ -1,6 +1,6 @@
 function currentTabId(){ return restoreActiveTab(); }
 function restoreActiveTab(){
- const allowed=['dashboard','products','recipes','ingredients','sales','expenses','analytics','pricing','cart','users','imports'];
+ const allowed=['dashboard','products','costAudit','recipes','ingredients','sales','expenses','analytics','pricing','cart','users','assumptions','imports'];
  const hash=(location.hash||'').replace('#','').trim();
  const saved=localStorage.getItem('khumbuka_active_tab') || sessionStorage.getItem('khumbuka_active_tab') || '';
  if(allowed.includes(hash)) return hash;
@@ -14,14 +14,14 @@ function persistActiveTab(id){
 }
 function markActiveTab(id){ document.body.dataset.activeTab=id; }
 function showTab(id, persist=true){
- const allowed=['dashboard','products','recipes','ingredients','sales','expenses','analytics','pricing','cart','users','imports'];
+ const allowed=['dashboard','products','costAudit','recipes','ingredients','sales','expenses','analytics','pricing','cart','users','assumptions','imports'];
  if(!allowed.includes(id)) id=restoreActiveTab();
  document.querySelectorAll('.tab').forEach(t=>t.classList.add('hidden'));
  byId(id)?.classList.remove('hidden');
  document.querySelectorAll('.sidebar button[data-tab]').forEach(btn=>btn.classList.toggle('active', btn.dataset.tab===id));
  markActiveTab(id);
  if(persist) persistActiveTab(id);
- const renderMap={dashboard:renderDashboard,products:renderProducts,recipes:renderRecipes,ingredients:renderIngredients,sales:renderSales,expenses:renderExpenses,analytics:renderAnalytics,cart:renderCartSimulator,imports:renderSettings,users:renderUsers,pricing:()=>{}};
+ const renderMap={dashboard:renderDashboard,products:renderProducts,costAudit:(typeof renderCostAudit==='function'?renderCostAudit:()=>{}),recipes:renderRecipes,ingredients:renderIngredients,sales:renderSales,expenses:renderExpenses,analytics:renderAnalytics,cart:renderCartSimulator,imports:renderSettings,users:renderUsers,assumptions:(typeof renderAssumptions==='function'?renderAssumptions:()=>{}),pricing:()=>{}};
  if(renderMap[id]) renderMap[id]();
  closeMobileMenu();
 }
